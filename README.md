@@ -20,11 +20,18 @@ registrando o que foi usado em cada um.
   ele gera outro. Se um vídeo der erro, o automático daquele canal pausa até você resolver.
 - Cada vídeo mostra o visual usado e as músicas com o tempo de início (tracklist pronta pra copiar).
 
-## Instalar no servidor (Proxmox)
+## Onde roda hoje
+
+- **VM 140 `fabrica-mixes` no pve2** (`192.168.4.70`, Debian 13, 4 vCPU, 4 GB). Dados em disco separado de 150 GB
+  montado em `/srv/fabrica` (`/srv/fabrica/data` → `/data` no container).
+- Gerenciada pelo **Dokploy** (pve1) como servidor remoto `fabrica-mixes`; projeto/compose `fabrica-mixes`,
+  fonte GitHub `main`, com deploy automático. Senha e `DATA_PATH` ficam na aba Environment do compose.
+- Site: `http://192.168.4.70:8080`.
+
+## Instalar em outro servidor (sem Dokploy)
 
 Use uma VM ou um container LXC Debian com Docker (com `nesting=1` no LXC), não o host do Proxmox direto.
-
-O repositório é privado: no servidor, rode `gh auth login` (ou cadastre uma deploy key) antes do clone.
+O repositório é privado: rode `gh auth login` (ou cadastre uma deploy key) antes do clone.
 
 ```sh
 git clone https://github.com/Matheuscara/fabrica-mixes.git
