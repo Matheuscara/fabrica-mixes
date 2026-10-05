@@ -5,7 +5,6 @@ const env = process.env
 export const PORT = Number(env.PORT ?? 8080)
 export const DATA_DIR = path.resolve(env.DATA_DIR ?? 'data')
 export const TMP_DIR = path.join(DATA_DIR, 'tmp')
-export const APP_PASSWORD = env.APP_PASSWORD ?? ''
 export const MAX_UPLOAD_BYTES = Number(env.MAX_UPLOAD_MB ?? 4096) * 1024 * 1024
 export const PUBLIC_DIR = path.resolve(import.meta.dirname, '../public')
 

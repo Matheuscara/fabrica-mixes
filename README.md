@@ -36,8 +36,10 @@ ordem, visual e miniatura antes de aprovar o render. O vídeo pronto fica dispon
 - **VM 140 `fabrica-mixes` no pve2** (`192.168.4.70`, Debian 13, 4 vCPU, 4 GB). Dados em disco separado de 150 GB
   montado em `/srv/fabrica` (`/srv/fabrica/data` → `/data` no container).
 - Gerenciada pelo **Dokploy** (pve1) como servidor remoto `fabrica-mixes`; projeto/compose `fabrica-mixes`,
-  fonte GitHub `main`, com deploy automático. Senha e `DATA_PATH` ficam na aba Environment do compose.
+  fonte GitHub `main`, com deploy automático. `DATA_PATH` fica na aba Environment do compose.
 - Site: `http://192.168.4.70:8080`.
+- Sem autenticação: qualquer dispositivo com acesso a `192.168.4.70:8080` pode enviar, alterar ou
+  excluir arquivos. Mantenha o acesso restrito à rede privada; não publique essa porta na internet.
 
 ## Instalar em outro servidor (sem Dokploy)
 
@@ -47,7 +49,7 @@ O repositório é privado: rode `gh auth login` (ou cadastre uma deploy key) ant
 ```sh
 git clone https://github.com/Matheuscara/fabrica-mixes.git
 cd fabrica-mixes
-cp .env.example .env    # defina APP_PASSWORD e onde ficam os dados (DATA_PATH)
+cp .env.example .env    # defina onde ficam os dados (DATA_PATH)
 docker compose up -d --build
 ```
 

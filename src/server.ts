@@ -1,6 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
-import { createHash, timingSafeEqual } from 'node:crypto'
-import { APP_PASSWORD, DATA_DIR, PORT, PUBLIC_DIR } from './config.ts'
+import { DATA_DIR, PORT, PUBLIC_DIR } from './config.ts'
 import { all, errorMessage, get, getChannel, run, UserError, type Song, type Style, type Video, type Visual } from './db.ts'
 import {
   approveDraft, autoFill, createVideos, deleteVideoFile, discardVideo, publishVideo, reorderDraftSong, replaceDraftSong,
@@ -67,20 +66,9 @@ function action(fn: (req: Request) => Promise<{ to: string; msg?: string }> | { 
   }
 }
 
-function requirePassword(req: Request, res: Response, next: NextFunction): void {
-  if (!APP_PASSWORD) return next()
-  const [scheme, encoded] = (req.headers.authorization ?? '').split(' ')
-  if (scheme === 'Basic' && encoded) {
-    const password = Buffer.from(encoded, 'base64').toString().split(':').slice(1).join(':')
-    const given = createHash('sha256').update(password).digest()
-    if (timingSafeEqual(given, createHash('sha256').update(APP_PASSWORD).digest())) return next()
-  }
-  res.set('WWW-Authenticate', 'Basic realm="Fabrica de Mixes", charset="UTF-8"').status(401).send('Senha necessária.')
-}
 
 const app = express()
 app.disable('x-powered-by')
-app.use(requirePassword)
 app.use('/static', express.static(PUBLIC_DIR))
 app.use(express.urlencoded({ extended: false }))
 
