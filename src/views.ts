@@ -556,8 +556,6 @@ function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
           <div class="button-row">
             <button class="primary">Salvar prompt</button>
             <button type="button" data-copy="prompt-${style.id}" ${style.prompt ? '' : 'disabled'}>Copiar prompt</button>
-            ${style.prompt ? html`<a class="button suno-action" href="https://suno.com/create" target="_blank"
-              rel="noopener noreferrer" data-suno-prompt="prompt-${style.id}">Copiar e abrir Suno ↗</a>` : ''}
           </div>
         </form>
         <p class="section-note">Receita deste estilo para gerar novas faixas no seu PC. Alterações aqui não mudam músicas já geradas.</p>
@@ -576,14 +574,7 @@ function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
   return html`<section class="card" id="musicas">
     <div class="section-head"><div><span class="section-kicker">BIBLIOTECA DE ÁUDIO</span><h2>Estilos e prompts</h2></div>
       <span class="section-note">${styles.length} ${styles.length === 1 ? 'estilo' : 'estilos'} · ${songs.length} músicas</span></div>
-    <div class="suno-flow">
-      <span class="section-kicker">GERAR COM SUNO PRO</span>
-      <p>Abra um estilo e clique em <b>Copiar e abrir Suno</b>. Cole o texto em <b>Style</b>, marque
-        <b>Instrumental</b> e gere suas variações. Depois de escolher as melhores, faça o download pelo
-        menu oficial do Suno e <a href="${base}/upload">envie as músicas aqui</a>.</p>
-      <p class="section-note">No Pro, a <a href="https://help.suno.com/en/articles/13614785" target="_blank" rel="noopener noreferrer">FAQ da Suno</a>
-        informa 20 músicas distintas para download por mês. Gerar variações não aumenta esse limite de exportação.</p>
-    </div>
+    <p class="section-note">Guarde a receita de cada estilo aqui e copie o prompt quando for gerar músicas no seu PC.</p>
     ${groups.length ? groups : html`<div class="empty-state"><h3>Nenhum estilo ainda.</h3><p>Crie um estilo e salve o primeiro prompt de geração.</p></div>`}
     <details class="style-creator" ${styles.length ? '' : 'open'}>
       <summary>Criar estilo com prompt</summary>
