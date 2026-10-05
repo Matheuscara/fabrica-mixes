@@ -482,12 +482,20 @@ function uploadSection(ch: Channel, styles: string[]): Html {
     <p class="section-note">Adicione músicas, imagens e loops só deste canal. Arquivos repetidos são ignorados automaticamente.</p>
     <form class="upload" data-upload="/channels/${ch.id}/upload" data-accept="${ACCEPTED_EXT}" onsubmit="return false">
       <div class="upload-toolbar">
-        <label>Estilo para músicas soltas
-          <input name="style" list="styles" maxlength="80" placeholder="Ex.: lofi-jazz-lounge" autocomplete="off">
-        </label>
+        <div class="style-picker">
+          <label>Estilo para músicas soltas
+            <select name="style">
+              ${styles.some(Boolean) ? html`<option value="" selected>Escolha um estilo…</option>` : ''}
+              ${styles.filter(Boolean).map(s => html`<option value="${s}">${s}</option>`)}
+              <option value="__new__" ${styles.some(Boolean) ? '' : 'selected'}>＋ Criar novo estilo…</option>
+            </select>
+          </label>
+          <label class="new-style-field" hidden>Nome do novo estilo
+            <input name="new_style" maxlength="80" placeholder="Ex.: jazz-noturno" autocomplete="off">
+          </label>
+        </div>
         <p>Músicas dentro de uma pasta herdam o <strong>nome da pasta</strong> como estilo. Imagens e vídeos entram na galeria de visuais.</p>
       </div>
-      <datalist id="styles">${styles.filter(Boolean).map(s => html`<option value="${s}">`)}</datalist>
       <div class="dropzone">
         <span class="drop-icon" aria-hidden="true">＋</span>
         <strong>Arraste arquivos ou pastas para cá</strong>

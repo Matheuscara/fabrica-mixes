@@ -54,7 +54,9 @@ git pull && docker compose up -d --build
 
 ## Mandar arquivos do PC
 
-Pelo site: arraste as pastas `musicas-geradas/<estilo>/`, imagens e vídeos curtos em loop.
+Pelo site: selecione um estilo existente para músicas soltas ou escolha **Criar novo estilo**.
+Ao arrastar `musicas-geradas/<estilo>/`, as músicas herdam o nome da pasta; imagens e vídeos curtos
+em loop entram como visuais do canal.
 
 Pelo terminal (o número do canal está na URL, `/channels/<id>`):
 

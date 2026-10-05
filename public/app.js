@@ -304,6 +304,7 @@ function setupUpload(box) {
   const url = box.dataset.upload
   const accepted = (box.dataset.accept || '').split(',').map(ext => ext.trim().toLowerCase())
   const styleInput = box.querySelector('[name=style]')
+  const newStyleInput = box.querySelector('[name=new_style]')
   const zone = box.querySelector('.dropzone')
   const log = box.querySelector('.upload-log')
   const summary = box.querySelector('.upload-summary')
@@ -317,6 +318,7 @@ function setupUpload(box) {
     visual: { added: 'visual adicionado', restored: 'visual restaurado', duplicate: 'visual repetido' },
   }
   const JUNK = new Set(['thumbs.db', 'desktop.ini'])
+  const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus'])
 
   const items = [] // tudo que entrou desde que a página abriu (o resumo vale até atualizar)
   const queue = []
@@ -330,20 +332,31 @@ function setupUpload(box) {
   let lastLogScroll = 0
   const ui = {}
 
-  // ── Estilo das músicas soltas sobrevive ao recarregar ──
+  // O select mostra todos os estilos existentes; texto livre só aparece ao criar um novo.
+  // Mantém a escolha anterior, inclusive texto digitado no antigo datalist.
   const styleKey = `upload-style:${location.pathname}`
-  if (styleInput) {
-    try {
-      if (!styleInput.value) styleInput.value = sessionStorage.getItem(styleKey) || ''
-    } catch {}
-    for (const type of ['input', 'change']) {
-      styleInput.addEventListener(type, () => {
-        try {
-          sessionStorage.setItem(styleKey, styleInput.value)
-        } catch {}
-      })
-    }
+  const savedStyle = (() => {
+    try { return sessionStorage.getItem(styleKey) || '' } catch { return '' }
+  })()
+  if (savedStyle && [...styleInput.options].some(option => option.value === savedStyle)) {
+    styleInput.value = savedStyle
+  } else if (savedStyle) {
+    styleInput.value = '__new__'
+    newStyleInput.value = savedStyle
   }
+  function chosenStyle() {
+    return styleInput.value === '__new__' ? newStyleInput.value.trim() : styleInput.value
+  }
+  function updateStyle() {
+    newStyleInput.closest('label').hidden = styleInput.value !== '__new__'
+    try { sessionStorage.setItem(styleKey, chosenStyle()) } catch {}
+  }
+  styleInput.addEventListener('change', () => {
+    updateStyle()
+    if (styleInput.value === '__new__') newStyleInput.focus()
+  })
+  newStyleInput.addEventListener('input', updateStyle)
+  updateStyle()
 
   function classify(name) {
     if (name.startsWith('.') || JUNK.has(name.toLowerCase())) return 'junk'
@@ -376,6 +389,7 @@ function setupUpload(box) {
 
   function enqueue(entries, emptyNote) {
     let taken = 0
+    let missingStyle = 0
     for (const { file, folder } of entries) {
       const path = folder ? `${folder}/${file.name}` : file.name
       const kind = classify(file.name)
@@ -384,10 +398,24 @@ function setupUpload(box) {
         skipped.push(path)
         continue
       }
-      queue.push(addItem(path, file, folder || styleInput?.value.trim() || ''))
+      const style = folder || chosenStyle()
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+      if (!style && AUDIO_EXT.has(ext)) {
+        const item = addItem(path, file, '')
+        item.retryable = true
+        item.needsStyle = true
+        setItem(item, 'error', 'escolha um estilo e tente de novo')
+        missingStyle++
+        continue
+      }
+      queue.push(addItem(path, file, style))
       taken++
     }
-    if (taken) note = ''
+    if (missingStyle) {
+      note = 'Escolha ou crie um estilo para músicas soltas; depois clique em “Tentar de novo”.'
+      if (styleInput.value === '__new__') newStyleInput.focus()
+      else styleInput.focus()
+    } else if (taken) note = ''
     else if (emptyNote) note = entries.length ? 'Nenhum arquivo compatível: envie áudio, imagem ou vídeo.' : emptyNote
     render()
     if (!running && queue.length) drain()
@@ -486,13 +514,25 @@ function setupUpload(box) {
   }
 
   function retryFailed() {
+    let waitingForStyle = false
     for (const item of items) {
       if (item.status !== 'error' || !item.retryable) continue
+      if (item.needsStyle) {
+        const style = chosenStyle()
+        if (!style) {
+          waitingForStyle = true
+          continue
+        }
+        item.style = style
+        item.needsStyle = false
+      }
       item.retryable = false
       item.loaded = 0
       setItem(item, 'queued', 'na fila (nova tentativa)')
       queue.push(item)
     }
+    if (waitingForStyle) note = 'Escolha ou crie um estilo para músicas soltas antes de tentar de novo.'
+    else note = ''
     render()
     if (!running && queue.length) drain()
   }

@@ -1151,6 +1151,14 @@ h1 .badge { font-size: 0.8rem; padding: 0.25rem 0.75rem; }
 .upload-toolbar > label { flex: 1 1 18rem; margin: 0; }
 .upload-toolbar > p { flex: 1 1 20rem; margin: 0; max-width: 56ch; font-size: 0.88rem; color: var(--muted); }
 .upload-toolbar > p strong { color: var(--text-soft); }
+.style-picker {
+  flex: 1 1 18rem;
+  display: grid;
+  gap: 0.7rem;
+  max-width: 440px;
+}
+.style-picker label { display: grid; gap: 0.35rem; font-size: 0.9rem; font-weight: 520; color: var(--text-soft); }
+.style-picker select, .style-picker input { width: 100%; }
 
 .dropzone {
   position: relative;
