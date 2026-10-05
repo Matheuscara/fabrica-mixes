@@ -9,6 +9,8 @@ registrando o que foi usado em cada um.
 - **Canal** = um canal do YouTube. Cada um tem as próprias músicas, visuais e vídeos.
 - **Navegação**: cada canal tem páginas separadas na barra lateral — visão geral, vídeos, produção,
   envio, músicas, visuais e ajustes. No celular, abra pelo botão "Menu do canal".
+- **Visão geral**: gráficos mostram vídeos por etapa e músicas novas/usadas por estilo. Barras e cartões
+  entram suavemente na tela; movimento reduzido desliga as animações. Os gráficos se reorganizam no celular.
 - **Estilo**: toda música tem um estilo (ex.: `lofi-jazz-lounge`). Um vídeo nunca mistura estilos.
   Arrastando uma pasta no site, o estilo é o nome da pasta onde a música está.
 - **Sem duplicação**:

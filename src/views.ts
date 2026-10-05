@@ -203,6 +203,67 @@ type VideoRow = Video & { visual_title: string; songs: number }
 type SongRow = Song & { uses: number }
 type VisualRow = Visual & { uses: number }
 
+interface VideoSummary {
+  queued: number
+  rendering: number
+  done: number
+  published: number
+  failed: number
+}
+
+function overviewCharts(ch: Channel, stats: VideoSummary, cap: Capacity): Html {
+  const stages = [
+    { status: 'done', name: 'Prontos', value: stats.done },
+    { status: 'published', name: 'Publicados', value: stats.published },
+    { status: 'rendering', name: 'Renderizando', value: stats.rendering },
+    { status: 'queued', name: 'Na fila', value: stats.queued },
+    { status: 'failed', name: 'Com erro', value: stats.failed },
+  ]
+  const totalVideos = stages.reduce((sum, stage) => sum + stage.value, 0)
+  let offset = 0
+  const segments = stages.filter(stage => stage.value > 0).map(stage => {
+    const share = (stage.value / totalVideos) * 100
+    const circle = html`<circle class="chart-segment ${stage.status}" cx="21" cy="21" r="15.9" pathLength="100"
+      stroke-dasharray="${share.toFixed(2)} ${(100 - share).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"/>`
+    offset += share
+    return circle
+  })
+  const maxSongs = Math.max(1, ...cap.styles.map(style => style.total))
+  return html`<div class="chart-grid">
+    <section class="card chart-card" aria-labelledby="stages-title">
+      <div class="section-head"><div><span class="section-kicker">PRODUÇÃO</span><h2 id="stages-title">Vídeos por etapa</h2></div></div>
+      <div class="chart-body">
+        <div class="donut-wrap">
+          <svg class="donut-chart" viewBox="0 0 42 42" role="img" aria-label="${totalVideos} vídeos no canal, distribuídos por etapa">
+            <circle class="chart-base" cx="21" cy="21" r="15.9" pathLength="100"/>
+            <g transform="rotate(-90 21 21)">${segments}</g>
+          </svg>
+          <div class="donut-center" aria-hidden="true"><strong>${totalVideos}</strong><span>vídeos</span></div>
+        </div>
+        <ul class="chart-legend">${stages.map(stage => html`<li><span class="legend-dot ${stage.status}" aria-hidden="true"></span>
+          <span>${stage.name}</span><strong>${stage.value}</strong></li>`)}</ul>
+      </div>
+      <p class="section-note">Acompanhe o que está pronto, publicado ou ainda na fila.</p>
+    </section>
+    <section class="card chart-card" aria-labelledby="styles-title">
+      <div class="section-head"><div><span class="section-kicker">BIBLIOTECA</span><h2 id="styles-title">Músicas por estilo</h2></div></div>
+      ${cap.styles.length ? html`<div class="style-chart" role="list" aria-label="Músicas novas e já usadas por estilo">
+        ${cap.styles.map(style => html`<div class="style-chart-row" role="listitem">
+          <div class="style-chart-label"><strong>${styleName(style.style)}</strong>
+            <span>${style.fresh} novas · ${style.total - style.fresh} usadas</span></div>
+          <div class="style-chart-track" role="img" aria-label="${styleName(style.style)}: ${style.fresh} novas, ${style.total - style.fresh} usadas">
+            <div class="style-chart-fill" style="width:${((style.total / maxSongs) * 100).toFixed(2)}%">
+              <span class="style-chart-used" style="width:${(((style.total - style.fresh) / style.total) * 100).toFixed(2)}%"></span>
+              <span class="style-chart-new" style="width:${((style.fresh / style.total) * 100).toFixed(2)}%"></span>
+            </div>
+          </div>
+        </div>`)}
+      </div>` : html`<div class="empty-state"><p>Nenhuma música enviada ainda.</p><a class="button" href="/channels/${ch.id}/upload">Enviar músicas</a></div>`}
+      <p class="section-note">Cada vídeo precisa de ${ch.songs_per_video} faixas do mesmo estilo${ch.reuse_songs ? '; reaproveitamento está ligado.' : '.'}</p>
+    </section>
+  </div>`
+}
+
 export type ChannelSection = 'overview' | 'videos' | 'produce' | 'upload' | 'songs' | 'visuals' | 'settings'
 
 function videoRows(channelId: number, limit?: number): VideoRow[] {
@@ -265,8 +326,12 @@ export function channelPage(ch: Channel, section: ChannelSection = 'overview'): 
     case 'overview': {
       title = ch.name
       subtitle = ch.description || 'Biblioteca, produção e vídeos do canal.'
-      const stats = get<{ ready: number; queued: number }>(
-        `SELECT SUM(status = 'done') AS ready, SUM(status IN ('queued', 'rendering')) AS queued
+      const stats = get<VideoSummary>(
+        `SELECT COALESCE(SUM(status = 'queued'), 0) AS queued,
+                COALESCE(SUM(status = 'rendering'), 0) AS rendering,
+                COALESCE(SUM(status = 'done'), 0) AS done,
+                COALESCE(SUM(status = 'published'), 0) AS published,
+                COALESCE(SUM(status = 'failed'), 0) AS failed
           FROM videos WHERE channel_id = ?`, ch.id,
       )!
       const freshSongs = cap!.styles.reduce((sum, p) => sum + p.fresh, 0)
@@ -276,8 +341,8 @@ export function channelPage(ch: Channel, section: ChannelSection = 'overview'): 
       const recent = videoRows(ch.id, 3)
       body = html`
         <div class="overview-grid" aria-label="Resumo do canal">
-          <div class="metric is-ok"><span class="metric-label">Prontos para baixar</span><strong class="metric-value">${stats.ready ?? 0}</strong><span class="metric-foot">Vídeos finalizados</span></div>
-          <div class="metric"><span class="metric-label">Em produção</span><strong class="metric-value">${stats.queued ?? 0}</strong><span class="metric-foot">Na fila ou renderizando</span></div>
+          <div class="metric is-ok"><span class="metric-label">Prontos para baixar</span><strong class="metric-value">${stats.done}</strong><span class="metric-foot">Vídeos finalizados</span></div>
+          <div class="metric"><span class="metric-label">Em produção</span><strong class="metric-value">${stats.queued + stats.rendering}</strong><span class="metric-foot">Na fila ou renderizando</span></div>
           <div class="metric ${missingSongs ? 'is-warn' : ''}"><span class="metric-label">Músicas novas</span><strong class="metric-value">${freshSongs}</strong><span class="metric-foot">${ch.songs_per_video} do mesmo estilo por vídeo</span></div>
           <div class="metric ${missingVisual ? 'is-warn' : ''}"><span class="metric-label">Visuais novos</span><strong class="metric-value">${cap!.visuals.fresh}</strong><span class="metric-foot">Imagens ou loops disponíveis</span></div>
         </div>
@@ -291,6 +356,7 @@ export function channelPage(ch: Channel, section: ChannelSection = 'overview'): 
             <p>Escolha um estilo ou deixe o sorteio revezar automaticamente.</p></div>
           <a class="button primary" href="${base}/produce">Gerar vídeo <span aria-hidden="true">↗</span></a>
         </aside>`}
+        ${overviewCharts(ch, stats, cap!)}
         ${videosSection(recent, base, 'Últimos vídeos')}
         <a class="button" href="${base}/videos">Ver todos os vídeos →</a>`
       break

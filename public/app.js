@@ -285,6 +285,18 @@ function setupSidebar(nav, toggle, backdrop) {
   sync()
 }
 
+// Gráficos entram uma vez ao aparecer na tela; sem JS ou com movimento reduzido, continuam visíveis.
+const charts = document.querySelector('.chart-grid')
+if (charts && 'IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  charts.classList.add('will-animate')
+  const observer = new IntersectionObserver(entries => {
+    if (!entries[0]?.isIntersecting) return
+    charts.classList.add('in-view')
+    observer.disconnect()
+  }, { threshold: 0.1 })
+  observer.observe(charts)
+}
+
 // ── Upload ────────────────────────────────────────────────────────────
 const upload = uploadBox ? setupUpload(uploadBox) : null
 

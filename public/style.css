@@ -340,6 +340,87 @@ a.metric:hover { border-color: var(--accent-line); transform: translateY(-1px); 
 .metric.is-accent .metric-value, .metric.accent .metric-value { color: var(--accent-strong); }
 .metric.err { color: inherit; }
 
+/* Gráficos da visão geral: SVG e barras de dados reais, sem dependências. */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+.chart-grid > * { min-width: 0; }
+.chart-card { margin: 0; }
+.chart-card > .section-note:last-child { margin-top: 1rem; }
+.chart-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 2vw, 2rem);
+  min-height: 192px;
+}
+.donut-wrap { position: relative; flex: none; width: min(155px, 42%); aspect-ratio: 1; }
+.donut-chart { display: block; width: 100%; height: 100%; overflow: visible; }
+.donut-chart circle { fill: none; stroke-width: 3.6; }
+.chart-base { stroke: var(--ink-4); }
+.chart-segment.done, .legend-dot.done { stroke: var(--ok); background: var(--ok); }
+.chart-segment.published, .legend-dot.published { stroke: var(--info); background: var(--info); }
+.chart-segment.rendering, .legend-dot.rendering { stroke: var(--accent); background: var(--accent); }
+.chart-segment.queued, .legend-dot.queued { stroke: var(--warn); background: var(--warn); }
+.chart-segment.failed, .legend-dot.failed { stroke: var(--err); background: var(--err); }
+.donut-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.donut-center strong { font: 600 clamp(1.8rem, 3vw, 2.4rem)/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.donut-center span { margin-top: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.chart-legend { min-width: 120px; flex: 1; max-width: 225px; margin: 0; padding: 0; list-style: none; }
+.chart-legend li { display: grid; grid-template-columns: 0.5rem minmax(0,1fr) auto; align-items: center; gap: 0.6rem; padding: 0.24rem 0; color: var(--text-soft); font-size: 0.82rem; }
+.chart-legend strong { font-variant-numeric: tabular-nums; }
+.legend-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; }
+.style-chart { display: grid; gap: 0.75rem; }
+.style-chart-row { min-width: 0; }
+.style-chart-label { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin-bottom: 0.32rem; font-size: 0.82rem; }
+.style-chart-label strong { min-width: 0; overflow-wrap: anywhere; }
+.style-chart-label span { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.style-chart-track { height: 0.62rem; border-radius: 999px; background: var(--ink-4); overflow: hidden; }
+.style-chart-fill { display: flex; height: 100%; min-width: 1px; transform-origin: left; }
+.style-chart-used { height: 100%; background: var(--line-strong); }
+.style-chart-new { height: 100%; background: var(--accent); }
+.style-chart-new:only-child { border-radius: 999px; }
+.metric, .surface-highlight { animation: panelEnter 400ms var(--ease) both; }
+.metric:nth-child(2) { animation-delay: 55ms; }
+.metric:nth-child(3) { animation-delay: 110ms; }
+.metric:nth-child(4) { animation-delay: 165ms; }
+@media (hover: hover) {
+  .metric { transition: transform 180ms var(--ease), border-color 180ms var(--ease); }
+  .metric:hover { transform: translateY(-3px); border-color: var(--accent-line); }
+}
+.chart-grid.will-animate:not(.in-view) .chart-card { opacity: 0; transform: translateY(12px); }
+.chart-grid.will-animate.in-view .chart-card { animation: panelEnter 550ms var(--ease) both; }
+.chart-grid.will-animate.in-view .chart-card:nth-child(2) { animation-delay: 90ms; }
+.chart-grid.will-animate.in-view .donut-chart { animation: ringEnter 700ms var(--ease) both; }
+.chart-grid.will-animate.in-view .style-chart-fill { animation: barEnter 650ms var(--ease) both; }
+.chart-grid.will-animate.in-view .style-chart-row:nth-child(2) .style-chart-fill { animation-delay: 70ms; }
+.chart-grid.will-animate.in-view .style-chart-row:nth-child(3) .style-chart-fill { animation-delay: 140ms; }
+.chart-grid.will-animate.in-view .style-chart-row:nth-child(4) .style-chart-fill { animation-delay: 210ms; }
+@keyframes panelEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ringEnter { from { opacity: 0; transform: rotate(-15deg) scale(0.9); } to { opacity: 1; transform: rotate(0) scale(1); } }
+@keyframes barEnter { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (max-width: 1160px) { .chart-grid { grid-template-columns: 1fr; } }
+@media (max-width: 550px) {
+  .chart-grid { scroll-margin-top: 4.5rem; }
+  .chart-body { min-height: 0; gap: 0.75rem; }
+  .donut-wrap { width: min(122px, 42%); }
+  .chart-legend { min-width: 0; }
+  .chart-legend li { font-size: 0.77rem; gap: 0.4rem; }
+  .style-chart-label { display: grid; gap: 0.05rem; }
+  .style-chart-label span { font-size: 0.77rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metric, .surface-highlight, .chart-grid.will-animate.in-view .chart-card,
+  .chart-grid.will-animate.in-view .donut-chart, .chart-grid.will-animate.in-view .style-chart-fill {
+    animation: none;
+  }
+  .chart-grid.will-animate:not(.in-view) .chart-card { opacity: 1; transform: none; }
+  .metric:hover { transform: none; }
+}
+
 /* ── Cartões ────────────────────────────────────────────────────────── */
 .card {
   position: relative;
