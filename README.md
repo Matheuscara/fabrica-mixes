@@ -24,8 +24,10 @@ registrando o que foi usado em cada um.
 
 Use uma VM ou um container LXC Debian com Docker (com `nesting=1` no LXC), não o host do Proxmox direto.
 
+O repositório é privado: no servidor, rode `gh auth login` (ou cadastre uma deploy key) antes do clone.
+
 ```sh
-git clone git@github.com:<seu-usuario>/fabrica-mixes.git
+git clone https://github.com/Matheuscara/fabrica-mixes.git
 cd fabrica-mixes
 cp .env.example .env    # defina APP_PASSWORD e onde ficam os dados (DATA_PATH)
 docker compose up -d --build
