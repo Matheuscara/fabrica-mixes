@@ -89,9 +89,9 @@ export function page(title: string, body: Html, flash: Flash = {}): string {
 </head>
 <body data-sig="${stateSignature()}">
   <header class="top">
-    <a href="/" class="brand">Fábrica de Mixes</a>
-    <span class="worker">${workerStatus()}</span>
-    <span class="muted disk">${bytes(bavail * bsize)} livres</span>
+    <a href="/" class="brand" aria-label="Fábrica de Mixes, início"><span class="brand-mark" aria-hidden="true">▶</span> Fábrica <span class="brand-light">de Mixes</span></a>
+    <span class="worker" aria-live="polite">${workerStatus()}</span>
+    <span class="disk" title="Espaço disponível no disco de dados">${bytes(bavail * bsize)} livres</span>
   </header>
   <main>
     ${flash.msg ? html`<p class="toast ok">${flash.msg}</p>` : ''}
@@ -151,34 +151,42 @@ export function dashboardPage(): Html {
   const cards = channels.map(ch => {
     const cap = capacity(ch)
     const fresh = cap.styles.reduce((sum, p) => sum + p.fresh, 0)
-    const total = cap.styles.reduce((sum, p) => sum + p.total, 0)
     const videos = get<{ ready: number; queue: number }>(
       `SELECT COALESCE(SUM(status = 'done'), 0) AS ready, COALESCE(SUM(status IN ('queued', 'rendering')), 0) AS queue
          FROM videos WHERE channel_id = ?`,
       ch.id,
     )!
     return html`<a class="card channel" href="/channels/${ch.id}">
+      <div class="channel-top"><span class="eyebrow">CANAL ${String(ch.id).padStart(2, '0')}</span>${autoBadge(ch)}</div>
       <h2>${ch.name}</h2>
-      ${ch.description ? html`<p class="muted">${ch.description}</p>` : ''}
+      <p class="page-subtitle">${ch.description || 'Seu espaço para músicas, visuais e mixes.'}</p>
       <dl class="stats">
-        <div><dt>Músicas novas</dt><dd>${fresh} / ${total}</dd></div>
-        <div><dt>Visuais novos</dt><dd>${cap.visuals.fresh} / ${cap.visuals.ready}</dd></div>
-        <div><dt>Prontos</dt><dd>${videos.ready}</dd></div>
-        <div><dt>Na fila</dt><dd>${videos.queue}</dd></div>
+        <div><dt>Vídeos prontos</dt><dd>${videos.ready}</dd></div>
+        <div><dt>Em produção</dt><dd>${videos.queue}</dd></div>
+        <div><dt>Músicas novas</dt><dd>${fresh}</dd></div>
+        <div><dt>Visuais novos</dt><dd>${cap.visuals.fresh}</dd></div>
       </dl>
-      <p class="muted">${autoBadge(ch)} · material pra ${plural(cap.videos, 'vídeo', 'vídeos')}</p>
+      <div class="channel-foot">
+        <span>${cap.videos ? html`Material para ${plural(cap.videos, 'novo vídeo', 'novos vídeos')}` : 'Envie músicas para continuar produzindo'}</span>
+        <span aria-hidden="true">↗</span>
+      </div>
     </a>`
   })
   return html`
-    <h1>Canais</h1>
+    <div class="page-head">
+      <span class="eyebrow">SEU ESTÚDIO</span>
+      <h1>Seus canais<span class="heading-dot">.</span></h1>
+      <p class="page-subtitle">Da sua biblioteca ao próximo vídeo. Acompanhe cada canal em um só lugar.</p>
+    </div>
     <div class="grid">${cards}</div>
-    ${channels.length ? '' : html`<p class="muted">Nenhum canal ainda.</p>`}
-    <section class="card">
-      <h2>Novo canal</h2>
+    ${channels.length ? '' : html`<div class="empty-state"><h2>Seu primeiro canal começa aqui.</h2><p>Crie um canal e envie as músicas e visuais que combinam com ele.</p></div>`}
+    <section class="card create-channel">
+      <div class="section-head"><div><span class="section-kicker">COMEÇAR</span><h2>Novo canal</h2></div></div>
+      <p class="section-note">Separe estilos, imagens e vídeos por canal. Você pode mudar as configurações depois.</p>
       <form method="post" action="/channels" class="stack">
-        <label>Nome <input name="name" required maxlength="100" placeholder="ex: Lofi Gatinhos"></label>
-        <label>Tema / descrição <input name="description" maxlength="300" placeholder="ex: lofi jazz com gatos, 1 vídeo por dia"></label>
-        <button>Criar canal</button>
+        <label>Nome do canal <input name="name" required maxlength="100" placeholder="Ex.: Lofi Gatinhos"></label>
+        <label>Tema / descrição <input name="description" maxlength="300" placeholder="Que tipo de mix você produz?"></label>
+        <button class="primary">Criar canal <span aria-hidden="true">↗</span></button>
       </form>
     </section>`
 }
@@ -200,7 +208,7 @@ export function channelPage(ch: Channel): Html {
   const videos = all<VideoRow>(
     `SELECT v.*, vis.title AS visual_title, (SELECT COUNT(*) FROM video_songs vs WHERE vs.video_id = v.id) AS songs
        FROM videos v JOIN visuals vis ON vis.id = v.visual_id
-      WHERE v.channel_id = ? ORDER BY v.id DESC LIMIT 100`,
+      WHERE v.channel_id = ? ORDER BY v.id DESC`,
     ch.id,
   )
   const songs = all<SongRow>(
@@ -213,15 +221,46 @@ export function channelPage(ch: Channel): Html {
        FROM visuals v WHERE channel_id = ? AND deleted_at IS NULL ORDER BY id DESC`,
     ch.id,
   )
+  const ready = videos.filter(v => v.status === 'done').length
+  const queued = videos.filter(v => v.status === 'queued' || v.status === 'rendering').length
+  const freshSongs = cap.styles.reduce((sum, p) => sum + p.fresh, 0)
+  const bestPool = Math.max(0, ...cap.styles.map(p => ch.reuse_songs ? p.total : p.fresh))
+  const missingSongs = Math.max(0, ch.songs_per_video - bestPool)
+  const missingVisual = ch.reuse_visuals ? !cap.visuals.ready : !cap.visuals.fresh
   return html`
-    <h1>${ch.name} ${autoBadge(ch)}</h1>
-    ${ch.description ? html`<p class="muted">${ch.description}</p>` : ''}
-    <nav class="tabs">
-      <a href="#gerar">Gerar</a><a href="#videos">Vídeos (${videos.length})</a><a href="#enviar">Enviar</a>
-      <a href="#visuais">Visuais (${visuals.length})</a><a href="#musicas">Músicas (${songs.length})</a><a href="#config">Configurações</a>
+    <div class="page-head" id="resumo">
+      <a href="/" class="back-link">← Todos os canais</a>
+      <span class="eyebrow">ESTÚDIO / CANAL ${String(ch.id).padStart(2, '0')}</span>
+      <div class="page-title-row"><h1>${ch.name}<span class="heading-dot">.</span></h1>${autoBadge(ch)}</div>
+      <p class="page-subtitle">${ch.description || 'Biblioteca, produção e vídeos do canal.'}</p>
+    </div>
+    <nav class="tabs" aria-label="Navegação do canal">
+      <a href="#videos">Vídeos <span>${videos.length}</span></a>
+      <a href="#gerar">Produzir</a>
+      <a href="#enviar">Enviar arquivos</a>
+      <a href="#visuais">Visuais <span>${visuals.length}</span></a>
+      <a href="#musicas">Músicas <span>${songs.length}</span></a>
+      <a href="#config">Ajustes</a>
     </nav>
-    ${generateSection(ch, cap, songs)}
+    <div class="overview-grid" aria-label="Resumo do canal">
+      <div class="metric is-ok"><span class="metric-label">Prontos para baixar</span><strong class="metric-value">${ready}</strong><span class="metric-foot">Vídeos finalizados</span></div>
+      <div class="metric"><span class="metric-label">Em produção</span><strong class="metric-value">${queued}</strong><span class="metric-foot">Na fila ou renderizando</span></div>
+      <div class="metric ${missingSongs ? 'is-warn' : ''}"><span class="metric-label">Músicas novas</span><strong class="metric-value">${freshSongs}</strong><span class="metric-foot">${ch.songs_per_video} do mesmo estilo por vídeo</span></div>
+      <div class="metric ${missingVisual ? 'is-warn' : ''}"><span class="metric-label">Visuais novos</span><strong class="metric-value">${cap.visuals.fresh}</strong><span class="metric-foot">Imagens ou loops disponíveis</span></div>
+    </div>
+    ${cap.videos === 0 ? html`<aside class="surface-highlight" aria-label="Próximo passo">
+      <div><span class="section-kicker">PRÓXIMO PASSO</span><h2>Mais material para o próximo mix</h2>
+        <p>${missingSongs ? html`Faltam pelo menos <b>${missingSongs} ${missingSongs === 1 ? 'música' : 'músicas'}</b> de um mesmo estilo.` : ''}
+          ${missingVisual ? 'Envie também um visual novo.' : ''}
+          Os vídeos prontos continuam disponíveis para baixar.</p></div>
+      <a class="button primary" href="#enviar">Enviar material <span aria-hidden="true">↗</span></a>
+    </aside>` : html`<aside class="surface-highlight ready">
+      <div><span class="section-kicker">PRONTO PARA PRODUZIR</span><h2>Você tem material para ${plural(cap.videos, 'novo mix', 'novos mixes')}.</h2>
+        <p>Escolha um estilo ou deixe o sorteio revezar automaticamente.</p></div>
+      <a class="button primary" href="#gerar">Gerar vídeo <span aria-hidden="true">↗</span></a>
+    </aside>`}
     ${videosSection(videos)}
+    ${generateSection(ch, cap, songs)}
     ${uploadSection(ch, cap.styles.map(p => p.style))}
     ${visualsSection(visuals)}
     ${songsSection(songs)}
@@ -231,27 +270,32 @@ export function channelPage(ch: Channel): Html {
 function generateSection(ch: Channel, cap: Capacity, songs: SongRow[]): Html {
   const n = ch.songs_per_video
   const avg = songs.length ? songs.reduce((sum, s) => sum + s.duration, 0) / songs.length : 0
-  const rule = ch.reuse_songs ? 'reaproveitando músicas (menos usadas primeiro)' : 'sem repetir música'
-  const visualRule = ch.reuse_visuals ? 'reaproveitando visuais' : 'sem repetir visual'
   return html`<section class="card" id="gerar">
-    <h2>Gerar vídeo</h2>
-    <p>Cada vídeo: <b>${n} músicas do mesmo estilo</b>${avg ? html` (~${Math.round((avg * n) / 60)} min)` : ''} + 1 visual,
-      ${rule}, ${visualRule}.</p>
-    <table class="compact">
-      <thead><tr><th>Estilo</th><th>Novas</th><th>Total</th><th>Dá pra fazer</th></tr></thead>
-      <tbody>${cap.styles.map(p => html`<tr><td>${styleName(p.style)}</td><td>${p.fresh}</td><td>${p.total}</td><td>${plural(p.videos, 'vídeo', 'vídeos')}</td></tr>`)}</tbody>
-    </table>
-    <p>Visuais: <b>${cap.visuals.fresh}</b> novos de ${cap.visuals.ready} prontos${cap.visuals.preparing ? html` · ${cap.visuals.preparing} preparando` : ''}${cap.visuals.failed ? html` · <span class="err">${cap.visuals.failed} com erro</span>` : ''}.
-      Material atual: <b>${plural(cap.videos, 'vídeo', 'vídeos')}</b>.</p>
-    <form method="post" action="/channels/${ch.id}/generate" class="row">
-      <select name="style">
-        <option value="auto">Automático (reveza estilos)</option>
-        ${cap.styles.map(p => html`<option value="s:${p.style}">${styleName(p.style)} (${count(p.videos)})</option>`)}
-      </select>
-      <label class="row">Quantidade <input type="number" name="count" value="1" min="1" max="50"></label>
-      <button ${cap.videos ? '' : 'disabled'}>Gerar</button>
+    <div class="section-head"><div><span class="section-kicker">PRODUÇÃO</span><h2>Preparar o próximo mix</h2></div>
+      <span class="badge ${cap.videos ? 'done' : 'queued'}">${cap.videos ? `${count(cap.videos)} possíveis` : 'Aguardando material'}</span></div>
+    <p class="section-note">Cada mix combina <b>${n} músicas do mesmo estilo</b>${avg ? html` (~${Math.round((avg * n) / 60)} min)` : ''} com uma imagem ou um loop.
+      ${ch.reuse_songs ? 'Músicas menos usadas primeiro.' : 'Sem repetir músicas.'}
+      ${ch.reuse_visuals ? 'Visuais podem se repetir.' : 'Sem repetir visuais.'}</p>
+    <div class="availability" role="list" aria-label="Músicas disponíveis por estilo">
+      ${cap.styles.length ? cap.styles.map(p => html`<div class="availability-item" role="listitem">
+        <div><strong>${styleName(p.style)}</strong><span>${p.fresh} novas · ${p.total} no total</span></div>
+        <span class="availability-number">${plural(p.videos, 'mix', 'mixes')}</span>
+      </div>`) : html`<p class="muted">Envie músicas para começar.</p>`}
+    </div>
+    <p class="section-note">Visuais: ${cap.visuals.fresh} novos, ${cap.visuals.ready} prontos
+      ${cap.visuals.preparing ? html` · ${cap.visuals.preparing} em preparo` : ''}
+      ${cap.visuals.failed ? html` · <span class="err">${cap.visuals.failed} com erro</span>` : ''}.</p>
+    <form method="post" action="/channels/${ch.id}/generate" class="row generate-form">
+      <label>Estilo
+        <select name="style">
+          <option value="auto">Alternar estilos disponíveis</option>
+          ${cap.styles.map(p => html`<option value="s:${p.style}">${styleName(p.style)} (${count(p.videos)})</option>`)}
+        </select>
+      </label>
+      <label>Quantidade <input type="number" name="count" value="1" min="1" max="50"></label>
+      <button class="primary" ${cap.videos ? '' : 'disabled'}>Gerar vídeo <span aria-hidden="true">↗</span></button>
     </form>
-    <p class="muted">${autoLine(ch, cap.videos)}</p>
+    <p class="section-note">${autoLine(ch, cap.videos)}</p>
   </section>`
 }
 
@@ -268,43 +312,50 @@ function autoLine(ch: Channel, possible: number): string {
 
 function videosSection(videos: VideoRow[]): Html {
   const rows = videos.map(v => html`<tr>
-    <td><a href="/videos/${v.id}"><img class="thumb" src="/visuals/${v.visual_id}/thumb" alt="" loading="lazy"></a></td>
-    <td><a href="/videos/${v.id}"><b>#${v.number}</b></a></td>
-    <td>${styleName(v.style)}</td>
-    <td>${statusBadge(v)}</td>
-    <td>${clock(v.duration)}</td>
-    <td>${v.songs} músicas</td>
-    <td class="muted">${when(v.created_at)}</td>
-    <td class="nowrap">
-      ${v.file && !v.file_deleted ? html`<a class="button" href="/videos/${v.id}/download">Baixar</a>` : ''}
-      <a href="/videos/${v.id}">Detalhes</a>
+    <td class="video-cover"><a href="/videos/${v.id}" aria-label="Abrir vídeo ${v.number}"><img class="thumb" src="/visuals/${v.visual_id}/thumb" alt="" loading="lazy"></a></td>
+    <td class="video-main"><a href="/videos/${v.id}"><b>Mix #${v.number}</b></a><small title="${v.visual_title}">${v.visual_title}</small></td>
+    <td data-label="Estilo">${styleName(v.style)}</td>
+    <td data-label="Status">${statusBadge(v)}</td>
+    <td data-label="Duração">${clock(v.duration)}</td>
+    <td data-label="Faixas">${v.songs} músicas</td>
+    <td class="muted" data-label="Criado">${when(v.created_at)}</td>
+    <td class="nowrap video-actions">
+      ${v.file && !v.file_deleted ? html`<a class="button primary" href="/videos/${v.id}/download">Baixar</a>` : ''}
+      <a href="/videos/${v.id}">Ver detalhes <span aria-hidden="true">↗</span></a>
     </td>
   </tr>`)
   return html`<section class="card" id="videos">
-    <h2>Vídeos</h2>
+    <div class="section-head"><div><span class="section-kicker">ACOMPANHAMENTO</span><h2>Seus vídeos</h2></div>
+      <span class="section-note">${videos.length} ${videos.length === 1 ? 'vídeo' : 'vídeos'} no histórico</span></div>
     ${videos.length
-      ? html`<div class="scroll"><table><thead><tr><th></th><th>#</th><th>Estilo</th><th>Status</th><th>Duração</th><th></th><th>Criado</th><th></th></tr></thead>
+      ? html`<div class="scroll"><table class="video-table"><thead><tr><th></th><th>Vídeo</th><th>Estilo</th><th>Status</th><th>Duração</th><th>Faixas</th><th>Criado</th><th>Ações</th></tr></thead>
           <tbody>${rows}</tbody></table></div>`
-      : html`<p class="muted">Nenhum vídeo ainda.</p>`}
+      : html`<div class="empty-state"><h3>Nenhum vídeo ainda</h3><p>Envie músicas e visuais. Quando gerar o primeiro mix, ele vai aparecer aqui.</p><a class="button" href="#enviar">Enviar arquivos</a></div>`}
   </section>`
 }
 
 function uploadSection(ch: Channel, styles: string[]): Html {
   return html`<section class="card" id="enviar">
-    <h2>Enviar arquivos</h2>
+    <div class="section-head"><div><span class="section-kicker">BIBLIOTECA</span><h2>Enviar arquivos</h2></div></div>
+    <p class="section-note">Adicione músicas, imagens e loops só deste canal. Arquivos repetidos são ignorados automaticamente.</p>
     <form class="upload" data-upload="/channels/${ch.id}/upload" data-accept="${ACCEPTED_EXT}" onsubmit="return false">
-      <label>Estilo das músicas soltas
-        <input name="style" list="styles" maxlength="80" placeholder="ex: lofi-jazz-lounge">
-      </label>
+      <div class="upload-toolbar">
+        <label>Estilo para músicas soltas
+          <input name="style" list="styles" maxlength="80" placeholder="Ex.: lofi-jazz-lounge" autocomplete="off">
+        </label>
+        <p>Músicas dentro de uma pasta herdam o <strong>nome da pasta</strong> como estilo. Imagens e vídeos entram na galeria de visuais.</p>
+      </div>
       <datalist id="styles">${styles.filter(Boolean).map(s => html`<option value="${s}">`)}</datalist>
       <div class="dropzone">
-        <p>Arraste músicas, imagens, vídeos ou <b>pastas</b> aqui</p>
-        <p class="muted">Música dentro de pasta usa o nome da pasta como estilo (ex: <code>lofi-jazz-lounge/</code>).
-          Imagem/vídeo vira visual do canal. Arquivo repetido é ignorado.</p>
-        <label class="button">Escolher arquivos<input type="file" multiple hidden accept="${ACCEPTED_EXT}"></label>
-        <label class="button">Escolher pasta<input type="file" webkitdirectory hidden></label>
+        <span class="drop-icon" aria-hidden="true">＋</span>
+        <strong>Arraste arquivos ou pastas para cá</strong>
+        <p>Ou escolha no computador. MP3, WAV, FLAC, PNG, JPG e vídeos curtos em loop.</p>
+        <div class="button-row">
+          <label class="button primary" role="button" tabindex="0">Escolher arquivos<input type="file" multiple hidden accept="${ACCEPTED_EXT}"></label>
+          <label class="button" role="button" tabindex="0">Escolher pasta<input type="file" webkitdirectory hidden></label>
+        </div>
       </div>
-      <p class="upload-summary"></p>
+      <p class="upload-summary" role="status" aria-live="polite"></p>
       <ul class="upload-log"></ul>
     </form>
   </section>`
@@ -313,12 +364,12 @@ function uploadSection(ch: Channel, styles: string[]): Html {
 function visualsSection(visuals: VisualRow[]): Html {
   const cards = visuals.map(v => html`<figure class="visual">
     ${v.status === 'ready'
-      ? html`<a href="/visuals/${v.id}/loop" target="_blank"><img src="/visuals/${v.id}/thumb" alt="" loading="lazy"></a>`
-      : html`<div class="placeholder ${v.status}">${v.status === 'failed' ? 'erro' : 'preparando…'}</div>`}
+      ? html`<a href="/visuals/${v.id}/loop" target="_blank" aria-label="Abrir prévia de ${v.title}"><img src="/visuals/${v.id}/thumb" alt="" loading="lazy"></a>`
+      : html`<div class="placeholder ${v.status}">${v.status === 'failed' ? 'Erro no preparo' : 'Preparando visual…'}</div>`}
     <figcaption>
       <span title="${v.title}"><span class="muted">#${v.id}</span> ${v.title}</span>
-      <span class="muted">${v.kind === 'image' ? 'imagem' : 'vídeo'} · ${v.uses ? plural(v.uses, 'uso', 'usos') : 'novo'}</span>
-      ${v.error ? html`<details><summary class="err">ver erro</summary><pre>${v.error}</pre></details>` : ''}
+      <span class="muted">${v.kind === 'image' ? 'Imagem' : 'Vídeo em loop'} · ${v.uses ? plural(v.uses, 'uso', 'usos') : 'Ainda não usado'}</span>
+      ${v.error ? html`<details><summary class="err">Ver erro</summary><pre>${v.error}</pre></details>` : ''}
       <span class="actions">
         ${v.status === 'failed' ? postButton(`/visuals/${v.id}/retry`, 'Tentar de novo') : ''}
         ${postButton(`/visuals/${v.id}/delete`, 'Excluir', { confirm: `Excluir o visual "${v.title}"?`, cls: 'danger small' })}
@@ -326,8 +377,10 @@ function visualsSection(visuals: VisualRow[]): Html {
     </figcaption>
   </figure>`)
   return html`<section class="card" id="visuais">
-    <h2>Visuais</h2>
-    ${visuals.length ? html`<div class="visuals">${cards}</div>` : html`<p class="muted">Nenhum visual ainda. Envie imagens ou vídeos curtos em loop.</p>`}
+    <div class="section-head"><div><span class="section-kicker">BIBLIOTECA VISUAL</span><h2>Imagens e loops</h2></div>
+      <span class="section-note">${visuals.length} no canal</span></div>
+    <p class="section-note">O sistema alterna os visuais disponíveis para criar mixes diferentes. Clique na imagem para ver o loop.</p>
+    ${visuals.length ? html`<div class="visuals">${cards}</div>` : html`<div class="empty-state"><h3>Uma imagem já basta para começar.</h3><p>Envie uma imagem ou um vídeo curto que combine com o canal.</p><a class="button" href="#enviar">Enviar visual</a></div>`}
   </section>`
 }
 
@@ -336,7 +389,7 @@ function songsSection(songs: SongRow[]): Html {
   const groups = [...byStyle].map(([style, list]) => {
     const fresh = list.filter(s => !s.uses).length
     return html`<details data-key="style:${style}">
-      <summary><b>${styleName(style)}</b> <span class="muted">${fresh} novas de ${list.length}</span></summary>
+      <summary><strong>${styleName(style)}</strong> <span class="muted">${fresh} novas · ${list.length} no total</span></summary>
       <div class="scroll"><table class="compact">
         <thead><tr><th>Música</th><th>Duração</th><th>Usos</th><th>Enviada</th><th></th></tr></thead>
         <tbody>${list.map(s => html`<tr>
@@ -349,31 +402,34 @@ function songsSection(songs: SongRow[]): Html {
     </details>`
   })
   return html`<section class="card" id="musicas">
-    <h2>Músicas</h2>
-    ${songs.length ? groups : html`<p class="muted">Nenhuma música ainda.</p>`}
+    <div class="section-head"><div><span class="section-kicker">BIBLIOTECA DE ÁUDIO</span><h2>Músicas por estilo</h2></div>
+      <span class="section-note">${songs.length} no canal</span></div>
+    <p class="section-note">Abra um estilo para ver as faixas. “Nova” significa que ainda não entrou em nenhum vídeo.</p>
+    ${songs.length ? groups : html`<div class="empty-state"><h3>Esta biblioteca está vazia.</h3><p>Envie músicas para começar a montar mixes.</p><a class="button" href="#enviar">Enviar músicas</a></div>`}
   </section>`
 }
 
 function settingsSection(ch: Channel): Html {
   return html`<section class="card" id="config">
-    <h2>Configurações</h2>
+    <div class="section-head"><div><span class="section-kicker">PREFERÊNCIAS</span><h2>Ajustes do canal</h2></div></div>
+    <p class="section-note">Essas opções valem para os próximos vídeos; os que já estão prontos não mudam.</p>
     <form method="post" action="/channels/${ch.id}/settings" class="stack">
       <label>Nome <input name="name" value="${ch.name}" required maxlength="100"></label>
       <label>Tema / descrição <input name="description" value="${ch.description}" maxlength="300"></label>
       <label>Músicas por vídeo <input type="number" name="songs_per_video" value="${ch.songs_per_video}" min="1" max="500"></label>
       <label class="check"><input type="checkbox" name="reuse_songs" ${ch.reuse_songs ? 'checked' : ''}>
-        Reaproveitar músicas já usadas quando acabarem as novas (sempre as menos usadas primeiro)</label>
+        Reaproveitar músicas já usadas (escolhe as menos usadas primeiro)</label>
       <label class="check"><input type="checkbox" name="reuse_visuals" ${ch.reuse_visuals ? 'checked' : ''}>
-        Reaproveitar visuais já usados quando acabarem os novos</label>
+        Reaproveitar visuais já usados</label>
       <label class="check"><input type="checkbox" name="auto_enabled" ${ch.auto_enabled ? 'checked' : ''}>
-        Gerar automaticamente</label>
-      <label>Quantos vídeos prontos manter (não publicados) <input type="number" name="auto_buffer" value="${ch.auto_buffer}" min="1" max="50"></label>
-      <button>Salvar</button>
+        Gerar automaticamente quando houver material</label>
+      <label>Manter até quantos vídeos não publicados <input type="number" name="auto_buffer" value="${ch.auto_buffer}" min="1" max="50"></label>
+      <button class="primary">Salvar ajustes</button>
     </form>
     <details class="danger-zone">
       <summary>Excluir canal</summary>
       <form method="post" action="/channels/${ch.id}/delete" class="stack">
-        <p>Apaga o canal com todas as músicas, visuais e vídeos dele. Digite o nome do canal pra confirmar.</p>
+        <p>Apaga o canal e todos os arquivos dele. Digite o nome exato para confirmar.</p>
         <input name="confirm" autocomplete="off" placeholder="${ch.name}">
         <button class="danger">Excluir canal para sempre</button>
       </form>
@@ -410,36 +466,47 @@ export function videoPage(video: Video): Html {
     actions.push(postButton(`/videos/${video.id}/discard`, 'Descartar', { confirm: 'Descartar este vídeo?', cls: 'danger' }))
   }
   return html`
-    <p><a href="/channels/${ch.id}#videos">← ${ch.name}</a></p>
-    <h1>Vídeo #${video.number} ${statusBadge(video)}</h1>
+    <div class="page-head">
+      <a class="back-link" href="/channels/${ch.id}#videos">← Voltar para ${ch.name}</a>
+      <span class="eyebrow">VÍDEO / ${styleName(video.style)}</span>
+      <div class="page-title-row"><h1>Mix #${video.number}<span class="heading-dot">.</span></h1>${statusBadge(video)}</div>
+      <p class="page-subtitle">${clock(video.duration)} · ${songs.length} músicas · visual #${visual.id}</p>
+    </div>
     ${video.error ? html`<pre class="error-box">${video.error}</pre>` : ''}
     <div class="video-layout">
-      <div>
+      <div class="card player-card">
         ${hasFile
           ? html`<video controls preload="metadata" src="/videos/${video.id}/file" poster="/visuals/${visual.id}/thumb"></video>`
           : html`<img class="poster" src="/visuals/${visual.id}/thumb" alt="">`}
-        <p class="actions">${actions}</p>
+        <div class="button-row video-controls">${actions}</div>
       </div>
-      <dl class="facts">
-        <dt>Estilo</dt><dd>${styleName(video.style)}</dd>
-        <dt>Duração</dt><dd>${clock(video.duration)}</dd>
-        <dt>Visual</dt><dd><span class="muted">#${visual.id}</span> ${visual.title} <span class="muted">(${visual.kind === 'image' ? 'imagem' : 'vídeo'}${visual.deleted_at ? ', excluído' : ''})</span></dd>
-        <dt>Criado</dt><dd>${when(video.created_at)}</dd>
-        <dt>Renderizado</dt><dd>${when(video.finished_at)}</dd>
-        <dt>Publicado</dt><dd>${when(video.published_at)}</dd>
-        ${video.file_deleted ? html`<dt>Arquivo</dt><dd class="muted">apagado</dd>` : ''}
-      </dl>
+      <aside class="card video-facts">
+        <span class="section-kicker">FICHA DO MIX</span>
+        <h2>Detalhes</h2>
+        <dl class="facts">
+          <dt>Estilo</dt><dd>${styleName(video.style)}</dd>
+          <dt>Duração</dt><dd>${clock(video.duration)}</dd>
+          <dt>Visual</dt><dd><span class="muted">#${visual.id}</span> ${visual.title} <span class="muted">(${visual.kind === 'image' ? 'imagem' : 'vídeo'}${visual.deleted_at ? ', excluído' : ''})</span></dd>
+          <dt>Criado</dt><dd>${when(video.created_at)}</dd>
+          <dt>Finalizado</dt><dd>${when(video.finished_at)}</dd>
+          <dt>Publicado</dt><dd>${when(video.published_at)}</dd>
+          ${video.file_deleted ? html`<dt>Arquivo</dt><dd class="muted">apagado; histórico preservado</dd>` : ''}
+        </dl>
+      </aside>
     </div>
     <section class="card">
-      <h2>Músicas (${songs.length})</h2>
-      <table class="compact">
+      <div class="section-head"><div><span class="section-kicker">SEQUÊNCIA</span><h2>Músicas do mix</h2></div>
+        <span class="section-note">${songs.length} faixas</span></div>
+      <div class="scroll"><table class="compact">
         <thead><tr><th>#</th><th>Início</th><th>Música</th><th>Duração</th></tr></thead>
         <tbody>${songs.map((s, i) => html`<tr>
           <td>${i + 1}</td><td>${clock(s.start)}</td>
           <td>${s.title}${s.deleted_at ? html` <span class="muted">(excluída)</span>` : ''}</td><td>${clock(s.duration)}</td>
         </tr>`)}</tbody>
-      </table>
-      <p><button type="button" data-copy="tracklist">Copiar tracklist</button></p>
-      <textarea id="tracklist" readonly rows="4">${tracklist}</textarea>
+      </table></div>
+      <div class="tracklist-head"><div><h3>Tracklist para copiar</h3>
+        <p class="section-note">Vídeo importado manualmente? Confira a ordem e os horários antes de usar esta lista.</p></div>
+        <button type="button" data-copy="tracklist">Copiar lista</button></div>
+      <textarea id="tracklist" readonly rows="4" aria-label="Tracklist do vídeo">${tracklist}</textarea>
     </section>`
 }
