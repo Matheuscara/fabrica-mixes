@@ -1,7 +1,6 @@
 services:
   fabrica:
     build: .
-    container_name: fabrica-mixes
     restart: unless-stopped
     init: true
     ports:
