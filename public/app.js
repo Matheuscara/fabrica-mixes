@@ -202,6 +202,31 @@ for (const btn of document.querySelectorAll('[data-copy]')) {
   })
 }
 
+// A assinatura web não oferece chave para esta aplicação. Abre o site oficial com o prompt
+// copiado no mesmo clique; a geração e o download continuam sob controle do usuário.
+for (const link of document.querySelectorAll('[data-suno-prompt]')) {
+  link.addEventListener('click', event => {
+    const field = document.getElementById(link.dataset.sunoPrompt)
+    if (!field?.value.trim()) {
+      event.preventDefault()
+      field?.focus()
+      return
+    }
+    field.focus({ preventScroll: true })
+    field.select()
+    let copied = false
+    try { copied = document.execCommand('copy') } catch {}
+    const notice = el('p', `toast ${copied ? 'ok' : 'err'}`,
+      copied
+        ? 'Prompt copiado. Cole no campo Style do Suno e marque Instrumental.'
+        : 'Não foi possível copiar automaticamente. Copie o texto selecionado e cole no Suno.')
+    notice.setAttribute('role', 'status')
+    notice.addEventListener('click', () => notice.remove())
+    ;(document.querySelector('main') || document.body).append(notice)
+    setTimeout(() => notice.remove(), 7000)
+  })
+}
+
 // ── <details> abertos sobrevivem ao recarregar ────────────────────────
 const openKey = `open:${location.pathname}`
 const openSet = new Set(JSON.parse(sessionStorage.getItem(openKey) || '[]'))

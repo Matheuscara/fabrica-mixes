@@ -17,6 +17,10 @@ registrando o que foi usado em cada um.
   editar e copiar depois. Estilos antigos e estilos criados pelo envio de uma pasta aparecem sem prompt
   até serem preenchidos. O site guarda a receita atual, mas não gera músicas: `gerar_musicas.py` ainda
   lê `canais/<Canal>/prompt-suno.md` no PC, sem sincronização automática com este campo.
+- **Suno Pro (site)**: na página Músicas, abra um estilo e use **Copiar e abrir Suno**. Cole o prompt
+  em *Style*, marque *Instrumental*, gere variações no site, baixe as escolhidas pelo menu oficial e
+  envie os arquivos aqui. Não há automação de geração nem `SUNO_API_KEY` no Dokploy neste fluxo.
+  A [FAQ da Suno](https://help.suno.com/en/articles/13614785) informa 20 downloads distintos/mês no Pro.
 - **Sem duplicação**:
   - arquivo com o mesmo conteúdo (hash) no mesmo canal é ignorado no envio;
   - música ou visual que já está em algum vídeo não é sorteado de novo (a não ser que você ligue

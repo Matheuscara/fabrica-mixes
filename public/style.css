@@ -1558,6 +1558,17 @@ details[data-key] table td:last-child { text-align: right; width: 1%; }
 details[data-key] table th, details[data-key] table td { padding-left: 1rem; padding-right: 1rem; }
 
 /* Prompt por estilo: edição separada do histórico de músicas. */
+.suno-flow {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, var(--accent-wash), transparent 72%), var(--ink-1);
+}
+.suno-flow p { max-width: 74ch; margin: 0.45rem 0 0; color: var(--text-soft); }
+.suno-flow .section-note { color: var(--muted); }
+.suno-action { border-color: var(--accent-line); background: var(--accent-wash); color: var(--accent-strong); }
+.suno-action:hover { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); }
 details[data-key] { scroll-margin-top: 4.5rem; }
 details[data-key] > summary .badge { margin-left: 0.25rem; }
 .style-prompt {
