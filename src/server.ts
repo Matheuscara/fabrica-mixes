@@ -6,7 +6,7 @@ import {
   autoFill, createVideos, deleteVideoFile, discardVideo, retryVideo, setPublished, startWorker, stopWorker, wake,
 } from './jobs.ts'
 import { deleteChannel, deleteSong, deleteVisual, receiveUpload } from './library.ts'
-import { channelPage, dashboardPage, html, page, stateSignature, videoPage, type Flash } from './views.ts'
+import { channelPage, dashboardPage, html, page, stateSignature, videoPage, type ChannelSection, type Flash } from './views.ts'
 
 class NotFound extends Error {
   status = 404
@@ -81,12 +81,28 @@ app.post('/channels', action(req => {
   const name = String(req.body.name ?? '').trim()
   if (!name) throw new UserError('Dê um nome pro canal.')
   const { id } = run('INSERT INTO channels (name, description) VALUES (?, ?)', name, String(req.body.description ?? '').trim())
-  return { to: `/channels/${id}#enviar`, msg: 'Canal criado. Agora envie músicas e visuais.' }
+  return { to: `/channels/${id}/upload`, msg: 'Canal criado. Agora envie músicas e visuais.' }
 }))
 
 app.get('/channels/:id', (req, res) => {
   const ch = channelOf(req)
   res.send(page(ch.name, channelPage(ch), flash(req)))
+})
+const SECTION_TITLES: Record<Exclude<ChannelSection, 'overview'>, string> = {
+  videos: 'Vídeos',
+  produce: 'Produzir',
+  upload: 'Enviar arquivos',
+  songs: 'Músicas',
+  visuals: 'Visuais',
+  settings: 'Ajustes',
+}
+
+
+app.get('/channels/:id/:section', (req, res) => {
+  const ch = channelOf(req)
+  const section = req.params.section as keyof typeof SECTION_TITLES
+  if (!Object.hasOwn(SECTION_TITLES, section)) throw new NotFound('Página do canal não encontrada.')
+  res.send(page(`${SECTION_TITLES[section]} · ${ch.name}`, channelPage(ch, section), flash(req)))
 })
 
 app.post('/channels/:id/settings', action(req => {
@@ -106,7 +122,7 @@ app.post('/channels/:id/settings', action(req => {
     ch.id,
   )
   autoFill()
-  return { to: `/channels/${ch.id}#config`, msg: 'Configurações salvas.' }
+  return { to: `/channels/${ch.id}/settings`, msg: 'Configurações salvas.' }
 }))
 
 app.post('/channels/:id/delete', action(async req => {
@@ -122,7 +138,7 @@ app.post('/channels/:id/generate', action(req => {
   const style = choice.startsWith('s:') ? choice.slice(2) : null
   const { created, stop } = createVideos(ch, style, int(req.body.count, 1, 50, 1))
   return {
-    to: `/channels/${ch.id}#videos`,
+    to: `/channels/${ch.id}/videos`,
     msg: `${created} ${created === 1 ? 'vídeo' : 'vídeos'} na fila.${stop ? ` Parou antes: ${stop}` : ''}`,
   }
 }))
@@ -139,20 +155,20 @@ app.post('/channels/:id/upload', async (req, res) => {
 app.post('/songs/:id/delete', action(async req => {
   const song = found(get<Song>('SELECT * FROM songs WHERE id = ? AND deleted_at IS NULL', Number(req.params.id)))
   await deleteSong(song)
-  return { to: `/channels/${song.channel_id}#musicas`, msg: `"${song.title}" excluída.` }
+  return { to: `/channels/${song.channel_id}/songs`, msg: `"${song.title}" excluída.` }
 }))
 
 app.post('/visuals/:id/delete', action(async req => {
   const visual = visualOf(req)
   await deleteVisual(visual)
-  return { to: `/channels/${visual.channel_id}#visuais`, msg: `"${visual.title}" excluído.` }
+  return { to: `/channels/${visual.channel_id}/visuals`, msg: `"${visual.title}" excluído.` }
 }))
 
 app.post('/visuals/:id/retry', action(req => {
   const visual = visualOf(req)
   run("UPDATE visuals SET status = 'pending', error = NULL WHERE id = ? AND status = 'failed'", visual.id)
   wake()
-  return { to: `/channels/${visual.channel_id}#visuais` }
+  return { to: `/channels/${visual.channel_id}/visuals` }
 }))
 
 // Miniatura fica mesmo depois de excluir o visual (histórico dos vídeos).
@@ -205,7 +221,7 @@ app.post('/videos/:id/unpublish', action(req => {
 app.post('/videos/:id/discard', action(async req => {
   const video = videoOf(req)
   await discardVideo(video)
-  return { to: `/channels/${video.channel_id}#videos`, msg: `Vídeo #${video.number} descartado; músicas e visual liberados.` }
+  return { to: `/channels/${video.channel_id}/videos`, msg: `Vídeo #${video.number} descartado; músicas e visual liberados.` }
 }))
 
 app.post('/videos/:id/delete-file', action(async req => {

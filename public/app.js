@@ -214,6 +214,77 @@ for (const d of document.querySelectorAll('details[data-key]')) {
   })
 }
 
+// ── Menu lateral do canal (no celular vira gaveta) ────────────────────
+const sidebar = document.getElementById('channel-nav')
+const sidebarToggle = document.querySelector('.sidebar-toggle')
+if (sidebar && sidebarToggle) setupSidebar(sidebar, sidebarToggle, document.querySelector('.sidebar-backdrop'))
+
+function setupSidebar(nav, toggle, backdrop) {
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  // O CSS decide o ponto de quebra: se o botão ☰ aparece, o menu é gaveta.
+  const isDrawer = () => toggle.getClientRects().length > 0
+  const isOpen = () => document.body.classList.contains('sidebar-open')
+  const sync = () => {
+    // Gaveta fechada fica fora do Tab e dos leitores de tela; no desktop o menu é sempre navegável.
+    nav.inert = isDrawer() && !isOpen()
+  }
+
+  function open() {
+    document.body.classList.add('sidebar-open')
+    toggle.setAttribute('aria-expanded', 'true')
+    toggle.setAttribute('aria-label', 'Fechar menu do canal')
+    sync()
+    const target = nav.querySelector('[aria-current="page"]') || nav.querySelector(FOCUSABLE)
+    target?.focus()
+  }
+
+  function close(restoreFocus) {
+    if (!isOpen()) return
+    document.body.classList.remove('sidebar-open')
+    toggle.setAttribute('aria-expanded', 'false')
+    toggle.setAttribute('aria-label', 'Abrir menu do canal')
+    sync()
+    if (restoreFocus && isDrawer()) toggle.focus()
+  }
+
+  toggle.addEventListener('click', () => (isOpen() ? close(true) : open()))
+  backdrop?.addEventListener('click', () => close(true))
+  nav.querySelector('.sidebar-close')?.addEventListener('click', () => close(true))
+  nav.addEventListener('click', e => {
+    if (e.target.closest('a[href]')) close(false)
+  })
+
+  document.addEventListener('keydown', e => {
+    if (!isOpen() || !isDrawer()) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      close(true)
+      return
+    }
+    if (e.key !== 'Tab') return
+    const items = [...nav.querySelectorAll(FOCUSABLE)].filter(item => item.getClientRects().length)
+    if (!items.length) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    const inside = nav.contains(document.activeElement)
+    if (e.shiftKey && (!inside || document.activeElement === first)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+      e.preventDefault()
+      first.focus()
+    }
+  })
+
+  addEventListener('resize', () => {
+    if (!isDrawer()) close(false)
+    sync()
+  })
+  // Voltar pelo histórico (bfcache) não pode reabrir a página com a gaveta aberta.
+  addEventListener('pageshow', () => close(false))
+  sync()
+}
+
 // ── Upload ────────────────────────────────────────────────────────────
 const upload = uploadBox ? setupUpload(uploadBox) : null
 

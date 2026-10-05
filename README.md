@@ -7,6 +7,8 @@ registrando o que foi usado em cada um.
 ## Como funciona
 
 - **Canal** = um canal do YouTube. Cada um tem as próprias músicas, visuais e vídeos.
+- **Navegação**: cada canal tem páginas separadas na barra lateral — visão geral, vídeos, produção,
+  envio, músicas, visuais e ajustes. No celular, abra pelo botão "Menu do canal".
 - **Estilo**: toda música tem um estilo (ex.: `lofi-jazz-lounge`). Um vídeo nunca mistura estilos.
   Arrastando uma pasta no site, o estilo é o nome da pasta onde a música está.
 - **Sem duplicação**:
