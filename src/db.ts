@@ -32,6 +32,16 @@ export interface Song {
   deleted_at: string | null
 }
 
+/** Prompt atual de geração; histórico das faixas já produzidas continua em songs/videos. */
+export interface Style {
+  id: number
+  channel_id: number
+  name: string
+  prompt: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Visual {
   id: number
   channel_id: number
@@ -101,6 +111,16 @@ CREATE TABLE IF NOT EXISTS songs (
   deleted_at TEXT,
   UNIQUE (channel_id, sha256)
 );
+
+CREATE TABLE IF NOT EXISTS styles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  prompt TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (channel_id, name)
+);
 CREATE INDEX IF NOT EXISTS songs_channel_style ON songs (channel_id, style);
 
 CREATE TABLE IF NOT EXISTS visuals (
@@ -149,6 +169,18 @@ CREATE TABLE IF NOT EXISTS video_songs (
   PRIMARY KEY (video_id, position)
 );
 CREATE INDEX IF NOT EXISTS video_songs_song ON video_songs (song_id);
+`)
+
+// Registra estilos dos arquivos já existentes sem alterar músicas nem vídeos históricos.
+db.exec(`
+INSERT INTO styles (channel_id, name)
+  SELECT s.channel_id, s.style FROM (
+    SELECT channel_id, style FROM songs WHERE style <> ''
+    UNION SELECT channel_id, style FROM videos WHERE style <> ''
+  ) s
+  WHERE NOT EXISTS (
+    SELECT 1 FROM styles st WHERE st.channel_id = s.channel_id AND st.name = s.style
+  );
 `)
 
 const statements = new Map<string, StatementSync>()

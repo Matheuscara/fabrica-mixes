@@ -1,7 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { APP_PASSWORD, DATA_DIR, PORT, PUBLIC_DIR } from './config.ts'
-import { all, errorMessage, get, getChannel, run, UserError, type Song, type Video, type Visual } from './db.ts'
+import { all, errorMessage, get, getChannel, run, UserError, type Song, type Style, type Video, type Visual } from './db.ts'
 import {
   autoFill, createVideos, deleteVideoFile, discardVideo, retryVideo, setPublished, startWorker, stopWorker, wake,
 } from './jobs.ts'
@@ -104,6 +104,26 @@ app.get('/channels/:id/:section', (req, res) => {
   if (!Object.hasOwn(SECTION_TITLES, section)) throw new NotFound('Página do canal não encontrada.')
   res.send(page(`${SECTION_TITLES[section]} · ${ch.name}`, channelPage(ch, section), flash(req)))
 })
+
+app.post('/channels/:id/styles', action(req => {
+  const ch = channelOf(req)
+  const name = String(req.body.name ?? '').trim()
+  const prompt = String(req.body.prompt ?? '').trim()
+  if (!name || name.length > 80) throw new UserError('Nome do estilo deve ter de 1 a 80 caracteres.')
+  if (!prompt || prompt.length > 12000) throw new UserError('Informe um prompt de até 12 mil caracteres.')
+  const { changes, id } = run('INSERT OR IGNORE INTO styles (channel_id, name, prompt) VALUES (?, ?, ?)', ch.id, name, prompt)
+  if (!changes) throw new UserError(`O estilo "${name}" já existe neste canal.`)
+  return { to: `/channels/${ch.id}/songs#style-${id}`, msg: `Estilo "${name}" e prompt salvos.` }
+}))
+
+app.post('/channels/:id/styles/:styleId/prompt', action(req => {
+  const ch = channelOf(req)
+  const style = found(get<Style>('SELECT * FROM styles WHERE id = ? AND channel_id = ?', Number(req.params.styleId), ch.id))
+  const prompt = String(req.body.prompt ?? '').trim()
+  if (prompt.length > 12000) throw new UserError('Prompt deve ter no máximo 12 mil caracteres.')
+  run("UPDATE styles SET prompt = ?, updated_at = datetime('now') WHERE id = ?", prompt, style.id)
+  return { to: `/channels/${ch.id}/songs#style-${style.id}`, msg: `Prompt de "${style.name}" salvo.` }
+}))
 
 app.post('/channels/:id/settings', action(req => {
   const ch = channelOf(req)

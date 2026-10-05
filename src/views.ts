@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { statfsSync } from 'node:fs'
 import { DATA_DIR } from './config.ts'
-import { all, get, type Channel, type Song, type Video, type VideoStatus, type Visual } from './db.ts'
-import { capacity, hasFailedVideo, stylePools, type Capacity } from './jobs.ts'
+import { all, get, type Channel, type Song, type Style, type Video, type VideoStatus, type Visual } from './db.ts'
+import { capacity, hasFailedVideo, type Capacity } from './jobs.ts'
 import { ACCEPTED_EXT } from './library.ts'
 
 // ── html`` com escape automático ────────────────────────────────────
@@ -376,15 +376,19 @@ export function channelPage(ch: Channel, section: ChannelSection = 'overview'): 
     case 'upload':
       title = 'Enviar arquivos'
       subtitle = 'Coloque músicas, imagens e loops na biblioteca deste canal.'
-      body = uploadSection(ch, stylePools(ch.id).map(p => p.style))
+      body = uploadSection(ch, all<Style>('SELECT * FROM styles WHERE channel_id = ? ORDER BY name', ch.id).map(s => s.name))
       break
     case 'songs':
       title = 'Músicas'
       subtitle = 'Faixas organizadas por estilo e histórico de uso.'
-      body = songsSection(all<SongRow>(
-        `SELECT s.*, (SELECT COUNT(*) FROM video_songs vs WHERE vs.song_id = s.id) AS uses
-           FROM songs s WHERE channel_id = ? AND deleted_at IS NULL ORDER BY style, created_at, id`, ch.id,
-      ), base)
+      body = songsSection(
+        all<SongRow>(
+          `SELECT s.*, (SELECT COUNT(*) FROM video_songs vs WHERE vs.song_id = s.id) AS uses
+             FROM songs s WHERE channel_id = ? AND deleted_at IS NULL ORDER BY style, created_at, id`, ch.id,
+        ),
+        all<Style>('SELECT * FROM styles WHERE channel_id = ? ORDER BY name', ch.id),
+        base,
+      )
       break
     case 'visuals':
       title = 'Visuais'
@@ -534,13 +538,29 @@ function visualsSection(visuals: VisualRow[], base: string): Html {
   </section>`
 }
 
-function songsSection(songs: SongRow[], base: string): Html {
+function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
   const byStyle = Map.groupBy(songs, s => s.style)
-  const groups = [...byStyle].map(([style, list]) => {
+  const groups = styles.map(style => {
+    const list = byStyle.get(style.name) ?? []
     const fresh = list.filter(s => !s.uses).length
-    return html`<details data-key="style:${style}">
-      <summary><strong>${styleName(style)}</strong> <span class="muted">${fresh} novas · ${list.length} no total</span></summary>
-      <div class="scroll"><table class="compact">
+    return html`<details id="style-${style.id}" data-key="style:${style.name}">
+      <summary><strong>${style.name}</strong>
+        <span class="muted">${fresh} novas · ${list.length} no total</span>
+        <span class="badge ${style.prompt ? 'done' : 'queued'}">${style.prompt ? 'prompt salvo' : 'sem prompt'}</span></summary>
+      <div class="style-prompt">
+        <form method="post" action="${base}/styles/${style.id}/prompt" class="stack">
+          <label for="prompt-${style.id}">Prompt de geração de música
+            <textarea id="prompt-${style.id}" name="prompt" maxlength="12000" rows="5"
+              placeholder="Descreva instrumentos, ritmo, clima e produção deste estilo…">${style.prompt}</textarea>
+          </label>
+          <div class="button-row">
+            <button class="primary">Salvar prompt</button>
+            <button type="button" data-copy="prompt-${style.id}" ${style.prompt ? '' : 'disabled'}>Copiar prompt</button>
+          </div>
+        </form>
+        <p class="section-note">Receita deste estilo para gerar novas faixas no seu PC. Alterações aqui não mudam músicas já geradas.</p>
+      </div>
+      ${list.length ? html`<div class="scroll"><table class="compact">
         <thead><tr><th>Música</th><th>Duração</th><th>Usos</th><th>Enviada</th><th></th></tr></thead>
         <tbody>${list.map(s => html`<tr>
           <td>${s.title}</td><td>${clock(s.duration)}</td>
@@ -548,14 +568,23 @@ function songsSection(songs: SongRow[], base: string): Html {
           <td class="muted">${when(s.created_at)}</td>
           <td>${postButton(`/songs/${s.id}/delete`, 'Excluir', { confirm: `Excluir "${s.title}"?`, cls: 'danger small' })}</td>
         </tr>`)}</tbody>
-      </table></div>
+      </table></div>` : html`<p class="style-empty">Nenhuma música enviada neste estilo. <a href="${base}/upload">Enviar músicas →</a></p>`}
     </details>`
   })
   return html`<section class="card" id="musicas">
-    <div class="section-head"><div><span class="section-kicker">BIBLIOTECA DE ÁUDIO</span><h2>Músicas por estilo</h2></div>
-      <span class="section-note">${songs.length} no canal</span></div>
-    <p class="section-note">Abra um estilo para ver as faixas. “Nova” significa que ainda não entrou em nenhum vídeo.</p>
-    ${songs.length ? groups : html`<div class="empty-state"><h3>Esta biblioteca está vazia.</h3><p>Envie músicas para começar a montar mixes.</p><a class="button" href="${base}/upload">Enviar músicas</a></div>`}
+    <div class="section-head"><div><span class="section-kicker">BIBLIOTECA DE ÁUDIO</span><h2>Estilos e prompts</h2></div>
+      <span class="section-note">${styles.length} ${styles.length === 1 ? 'estilo' : 'estilos'} · ${songs.length} músicas</span></div>
+    <p class="section-note">Guarde a receita de cada estilo aqui e copie o prompt quando for gerar músicas no seu PC.</p>
+    ${groups.length ? groups : html`<div class="empty-state"><h3>Nenhum estilo ainda.</h3><p>Crie um estilo e salve o primeiro prompt de geração.</p></div>`}
+    <details class="style-creator" ${styles.length ? '' : 'open'}>
+      <summary>Criar estilo com prompt</summary>
+      <form method="post" action="${base}/styles" class="stack">
+        <label>Nome do estilo <input name="name" required maxlength="80" placeholder="Ex.: jazz-noturno"></label>
+        <label>Prompt de geração <textarea name="prompt" required maxlength="12000" rows="5"
+          placeholder="Ex.: jazz instrumental noturno, 85 bpm, piano elétrico quente…"></textarea></label>
+        <button class="primary">Salvar estilo</button>
+      </form>
+    </details>
   </section>`
 }
 

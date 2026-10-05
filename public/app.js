@@ -214,6 +214,15 @@ for (const d of document.querySelectorAll('details[data-key]')) {
   })
 }
 
+// Ao salvar/criar um prompt, o redirecionamento aponta para o estilo editado.
+if (location.hash.startsWith('#style-')) {
+  const selected = document.getElementById(location.hash.slice(1))
+  if (selected?.matches('details[data-key]')) {
+    selected.open = true
+    selected.scrollIntoView({ block: 'start' })
+  }
+}
+
 // ── Menu lateral do canal (no celular vira gaveta) ────────────────────
 const sidebar = document.getElementById('channel-nav')
 const sidebarToggle = document.querySelector('.sidebar-toggle')

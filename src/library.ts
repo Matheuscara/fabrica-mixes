@@ -103,6 +103,12 @@ async function addSong(channelId: number, file: Received, style: string): Promis
   const rel = `channels/${channelId}/songs/${file.sha256.slice(0, 16)}${file.ext}`
   await mkdir(path.dirname(abs(rel)), { recursive: true })
   await rename(file.tmp, abs(rel))
+  // Pasta ou estilo novo no formulário: registra o estilo para guardar seu prompt depois.
+  if (style) run(
+    `INSERT INTO styles (channel_id, name)
+       SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM styles WHERE channel_id = ? AND name = ?)`,
+    channelId, style, channelId, style,
+  )
 
   if (existing) {
     // Tinha sido excluída e ficou só como histórico: volta a valer.

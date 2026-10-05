@@ -13,6 +13,10 @@ registrando o que foi usado em cada um.
   entram suavemente na tela; movimento reduzido desliga as animações. Os gráficos se reorganizam no celular.
 - **Estilo**: toda música tem um estilo (ex.: `lofi-jazz-lounge`). Um vídeo nunca mistura estilos.
   Arrastando uma pasta no site, o estilo é o nome da pasta onde a música está.
+- **Prompt por estilo**: na página Músicas, crie o estilo e salve seu prompt de geração; você pode
+  editar e copiar depois. Estilos antigos e estilos criados pelo envio de uma pasta aparecem sem prompt
+  até serem preenchidos. O site guarda a receita atual, mas não gera músicas: `gerar_musicas.py` ainda
+  lê `canais/<Canal>/prompt-suno.md` no PC, sem sincronização automática com este campo.
 - **Sem duplicação**:
   - arquivo com o mesmo conteúdo (hash) no mesmo canal é ignorado no envio;
   - música ou visual que já está em algum vídeo não é sorteado de novo (a não ser que você ligue

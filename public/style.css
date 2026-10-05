@@ -1557,6 +1557,28 @@ details[data-key] table td:first-child { min-width: 12rem; overflow-wrap: anywhe
 details[data-key] table td:last-child { text-align: right; width: 1%; }
 details[data-key] table th, details[data-key] table td { padding-left: 1rem; padding-right: 1rem; }
 
+/* Prompt por estilo: edição separada do histórico de músicas. */
+details[data-key] { scroll-margin-top: 4.5rem; }
+details[data-key] > summary .badge { margin-left: 0.25rem; }
+.style-prompt {
+  padding: 1rem;
+  border-top: 1px solid var(--line-soft);
+  background: linear-gradient(135deg, var(--accent-wash), transparent 65%), var(--ink-2);
+}
+.style-prompt .stack { max-width: 760px; }
+.style-prompt textarea, .style-creator textarea { min-height: 7rem; }
+.style-prompt .button-row { margin-top: 0.15rem; }
+.style-prompt .section-note { margin-top: 0.8rem; }
+.style-empty { margin: 0; padding: 1rem; border-top: 1px solid var(--line-soft); color: var(--muted); }
+.style-creator {
+  margin-top: 1.25rem;
+  border: 1px dashed var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--ink-1);
+}
+.style-creator > summary { padding: 0.85rem 1rem; color: var(--accent-strong); font-weight: 600; }
+.style-creator > form { padding: 0 1rem 1rem; }
+
 .danger-zone {
   margin-top: 2rem;
   padding: 0.25rem 1rem;
