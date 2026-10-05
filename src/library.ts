@@ -188,12 +188,15 @@ export async function deleteSong(song: Song): Promise<void> {
 
 /** Igual a deleteSong; no histórico fica só a miniatura. */
 export async function deleteVisual(visual: Visual): Promise<void> {
-  if (get("SELECT 1 FROM videos WHERE visual_id = ? AND status IN ('queued', 'rendering', 'failed')", visual.id)) {
-    throw new UserError(`"${visual.title}" está num vídeo que ainda não foi renderizado. Descarte esse vídeo antes.`)
+  if (get(
+    `SELECT 1 FROM videos WHERE (visual_id = ? OR thumbnail_visual_id = ?)
+      AND status IN ('queued', 'rendering', 'failed')`, visual.id, visual.id,
+  )) {
+    throw new UserError(`"${visual.title}" está em um vídeo que ainda não foi renderizado. Descarte esse vídeo antes.`)
   }
   cancelJob('visual', visual.id)
   const dir = abs(visual.dir)
-  if (get('SELECT 1 FROM videos WHERE visual_id = ?', visual.id)) {
+  if (get('SELECT 1 FROM videos WHERE visual_id = ? OR thumbnail_visual_id = ?', visual.id, visual.id)) {
     run("UPDATE visuals SET deleted_at = datetime('now') WHERE id = ?", visual.id)
     await Promise.all([
       rm(path.join(dir, visual.source), { force: true }),

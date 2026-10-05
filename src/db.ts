@@ -64,6 +64,13 @@ export interface Video {
   style: string
   visual_id: number
   status: VideoStatus
+  /** Null with status=queued means a reserved draft awaiting review. */
+  approved_at: string | null
+  downloaded_at: string | null
+  planned_date: string | null
+  youtube_url: string | null
+  published_date: string | null
+  thumbnail_visual_id: number | null
   progress: number
   error: string | null
   duration: number
@@ -156,6 +163,12 @@ CREATE TABLE IF NOT EXISTS videos (
   started_at TEXT,
   finished_at TEXT,
   published_at TEXT,
+  approved_at TEXT,
+  downloaded_at TEXT,
+  planned_date TEXT,
+  youtube_url TEXT,
+  published_date TEXT,
+  thumbnail_visual_id INTEGER REFERENCES visuals(id),
   UNIQUE (channel_id, number)
 );
 CREATE INDEX IF NOT EXISTS videos_visual ON videos (visual_id);
@@ -182,6 +195,33 @@ INSERT INTO styles (channel_id, name)
     SELECT 1 FROM styles st WHERE st.channel_id = s.channel_id AND st.name = s.style
   );
 `)
+
+// Migrate existing channels without rebuilding videos/video_songs or changing historical IDs.
+const videoColumns = new Set(
+  (db.prepare('PRAGMA table_info(videos)').all() as { name: string }[]).map(col => col.name),
+)
+db.exec('BEGIN IMMEDIATE')
+try {
+  if (!videoColumns.has('approved_at')) {
+    db.exec(`ALTER TABLE videos ADD COLUMN approved_at TEXT;
+      UPDATE videos SET approved_at = created_at WHERE status IN ('queued', 'rendering', 'failed');`)
+  }
+  if (!videoColumns.has('downloaded_at')) {
+    db.exec(`ALTER TABLE videos ADD COLUMN downloaded_at TEXT;
+      UPDATE videos SET downloaded_at = published_at WHERE status = 'published' AND published_at IS NOT NULL;`)
+  }
+  if (!videoColumns.has('planned_date')) db.exec('ALTER TABLE videos ADD COLUMN planned_date TEXT')
+  if (!videoColumns.has('youtube_url')) db.exec('ALTER TABLE videos ADD COLUMN youtube_url TEXT')
+  // Historical timestamps remain available; don't guess a local calendar date from UTC.
+  if (!videoColumns.has('published_date')) db.exec('ALTER TABLE videos ADD COLUMN published_date TEXT')
+  if (!videoColumns.has('thumbnail_visual_id')) {
+    db.exec('ALTER TABLE videos ADD COLUMN thumbnail_visual_id INTEGER REFERENCES visuals(id)')
+  }
+  db.exec('COMMIT')
+} catch (err) {
+  db.exec('ROLLBACK')
+  throw err
+}
 
 const statements = new Map<string, StatementSync>()
 function prepare(sql: string): StatementSync {

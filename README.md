@@ -1,14 +1,17 @@
 # Fábrica de Mixes
 
-Site que roda no servidor e monta mixes longos pro YouTube: você manda músicas e imagens/loops
-pra cada canal, ele sorteia **N músicas do mesmo estilo + 1 visual**, renderiza o vídeo e deixa pra baixar,
-registrando o que foi usado em cada um.
+Site que roda no servidor e monta mixes longos pro YouTube. Você envia músicas e imagens/loops por
+canal; o sistema reserva **N músicas do mesmo estilo + 1 visual** num rascunho. Revise músicas,
+ordem, visual e miniatura antes de aprovar o render. O vídeo pronto fica disponível para baixar.
 
 ## Como funciona
 
 - **Canal** = um canal do YouTube. Cada um tem as próprias músicas, visuais e vídeos.
 - **Navegação**: cada canal tem páginas separadas na barra lateral — visão geral, vídeos, produção,
   envio, músicas, visuais e ajustes. No celular, abra pelo botão "Menu do canal".
+- **Kanban de vídeos**: Rascunho → Produção → Pronto → Agendado → Publicado (e Erro).
+  Só a sua aprovação coloca o rascunho na fila de render. Depois você registra download, data
+  planejada, link e data da publicação no YouTube. A publicação no YouTube é manual.
 - **Visão geral**: gráficos mostram vídeos por etapa e músicas novas/usadas por estilo. Barras e cartões
   entram suavemente na tela; movimento reduzido desliga as animações. Os gráficos se reorganizam no celular.
 - **Estilo**: toda música tem um estilo (ex.: `lofi-jazz-lounge`). Um vídeo nunca mistura estilos.
@@ -24,8 +27,8 @@ registrando o que foi usado em cada um.
   - descartar um vídeo libera as músicas e o visual dele; vídeo publicado continua contando como usado.
 - **Render sem GPU**: cada imagem/vídeo é convertido uma vez num loop 1080p30 (barras pretas se não for 16:9).
   Depois, todo render só copia esse loop e codifica o áudio: ~1–2 min por hora de mix numa CPU comum.
-- **Automático** (por canal): mantém sempre X vídeos prontos e não publicados. Publicou ou descartou,
-  ele gera outro. Se um vídeo der erro, o automático daquele canal pausa até você resolver.
+- **Automático** (por canal): mantém até X rascunhos ou vídeos não publicados. Ele reserva material
+  novo, mas **nunca renderiza sem revisão e aprovação**. Se houver vídeo com erro, pausa até resolver.
 - Cada vídeo mostra o visual usado e as músicas com o tempo de início (tracklist pronta pra copiar).
 
 ## Onde roda hoje

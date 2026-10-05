@@ -67,9 +67,8 @@ export function capacity(ch: Channel): Capacity {
 // ── Montagem dos vídeos ─────────────────────────────────────────────
 
 /**
- * Reserva músicas + visual e põe o vídeo na fila. Músicas vêm todas do mesmo estilo,
- * sorteadas entre as menos usadas (sem reaproveitar: só as nunca usadas). Visual idem.
- * `style = null` reveza: escolhe o estilo usado há mais tempo.
+ * Reserves a reviewable draft: one style, N songs and a visual. Nothing renders until approved.
+ * `style = null` rotates through the least recently used styles.
  */
 export function createVideo(ch: Channel, style: string | null): number {
   return tx(() => {
@@ -126,7 +125,8 @@ export function createVideo(ch: Channel, style: string | null): number {
       ch.id,
     )!
     const { id } = run(
-      `INSERT INTO videos (channel_id, number, style, visual_id, status, duration) VALUES (?, ?, ?, ?, 'queued', ?)`,
+      `INSERT INTO videos (channel_id, number, style, visual_id, status, duration)
+       VALUES (?, ?, ?, ?, 'queued', ?)`,
       ch.id, next, chosen, visual.id, duration,
     )
     let start = 0
@@ -138,7 +138,7 @@ export function createVideo(ch: Channel, style: string | null): number {
   })
 }
 
-/** Cria até `count` vídeos; para no primeiro que faltar material. */
+/** Cria até `count` rascunhos; para no primeiro que faltar material. */
 export function createVideos(ch: Channel, style: string | null, count: number): { created: number; stop: string | null } {
   let created = 0
   try {
@@ -148,10 +148,8 @@ export function createVideos(ch: Channel, style: string | null, count: number): 
     }
   } catch (err) {
     if (!(err instanceof UserError) || created === 0) throw err
-    wake()
     return { created, stop: err.message }
   }
-  wake()
   return { created, stop: null }
 }
 
@@ -167,8 +165,8 @@ export function hasFailedVideo(channelId: number): boolean {
 }
 
 /**
- * Modo automático: mantém `auto_buffer` vídeos não publicados (fila + renderizando + prontos).
- * Pausa no canal que tiver vídeo com erro, pra não ficar falhando em loop.
+ * Modo automático reserva até `auto_buffer` rascunhos/vídeos não publicados.
+ * Nunca renderiza rascunhos sem revisão. Pausa no canal com vídeo que falhou.
  */
 export function autoFill(): void {
   for (const ch of all<Channel>('SELECT * FROM channels WHERE auto_enabled = 1')) {
@@ -186,7 +184,147 @@ export function autoFill(): void {
       }
     }
   }
+}
+
+function requireDraft(video: Video): void {
+  if (video.status !== 'queued' || video.approved_at) throw new UserError('Só rascunhos podem ser editados.')
+}
+
+function requireDate(value: string): void {
+  const timestamp = Date.parse(`${value}T00:00:00Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(timestamp) ||
+      new Date(timestamp).toISOString().slice(0, 10) !== value) {
+    throw new UserError('Informe uma data válida.')
+  }
+}
+
+function updateDraftTiming(videoId: number): void {
+  const tracks = all<{ position: number; duration: number }>(
+    `SELECT vs.position, s.duration FROM video_songs vs JOIN songs s ON s.id = vs.song_id
+      WHERE vs.video_id = ? ORDER BY vs.position`, videoId,
+  )
+  let start = 0
+  for (const track of tracks) {
+    run('UPDATE video_songs SET start = ? WHERE video_id = ? AND position = ?', start, videoId, track.position)
+    start += track.duration
+  }
+  run('UPDATE videos SET duration = ? WHERE id = ?', start, videoId)
+}
+
+/** A draft reserves material but cannot enter the ffmpeg queue before approval. */
+export function approveDraft(video: Video): void {
+  requireDraft(video)
+  const { changes } = run(
+    "UPDATE videos SET approved_at = datetime('now') WHERE id = ? AND status = 'queued' AND approved_at IS NULL",
+    video.id,
+  )
+  if (!changes) throw new UserError('Rascunho já aprovado ou removido.')
   wake()
+}
+
+export function reorderDraftSong(video: Video, position: number, direction: -1 | 1): void {
+  requireDraft(video)
+  if (!Number.isInteger(position) || (direction !== -1 && direction !== 1)) throw new UserError('Posição inválida.')
+  const next = position + direction
+  tx(() => {
+    const current = get('SELECT 1 FROM video_songs WHERE video_id = ? AND position = ?', video.id, position)
+    const neighbor = get('SELECT 1 FROM video_songs WHERE video_id = ? AND position = ?', video.id, next)
+    if (!current || !neighbor) throw new UserError('Esta faixa não pode ser movida nessa direção.')
+    run('UPDATE video_songs SET position = -1 WHERE video_id = ? AND position = ?', video.id, position)
+    run('UPDATE video_songs SET position = ? WHERE video_id = ? AND position = ?', position, video.id, next)
+    run('UPDATE video_songs SET position = ? WHERE video_id = ? AND position = -1', next, video.id)
+    updateDraftTiming(video.id)
+  })
+}
+
+export function replaceDraftSong(video: Video, position: number, songId: number): void {
+  requireDraft(video)
+  if (!Number.isInteger(position) || !Number.isInteger(songId)) throw new UserError('Música inválida.')
+  const current = get<{ song_id: number }>('SELECT song_id FROM video_songs WHERE video_id = ? AND position = ?', video.id, position)
+  if (!current) throw new UserError('Faixa não encontrada no rascunho.')
+  if (current.song_id === songId) return
+  const replacement = get<Song>(
+    'SELECT * FROM songs WHERE id = ? AND channel_id = ? AND style = ? AND deleted_at IS NULL',
+    songId, video.channel_id, video.style,
+  )
+  if (!replacement) throw new UserError('A substituta precisa ser uma música ativa deste estilo e canal.')
+  if (get('SELECT 1 FROM video_songs WHERE video_id = ? AND song_id = ?', video.id, songId)) {
+    throw new UserError('Esta música já está neste mix.')
+  }
+  const channel = get<Channel>('SELECT * FROM channels WHERE id = ?', video.channel_id)!
+  if (!channel.reuse_songs && get('SELECT 1 FROM video_songs WHERE song_id = ? AND video_id <> ?', songId, video.id)) {
+    throw new UserError('Esta música já foi reservada para outro vídeo.')
+  }
+  tx(() => {
+    run('UPDATE video_songs SET song_id = ? WHERE video_id = ? AND position = ?', songId, video.id, position)
+    updateDraftTiming(video.id)
+  })
+}
+
+export function setDraftVisual(video: Video, visualId: number): void {
+  requireDraft(video)
+  const visual = get<Visual>(
+    "SELECT * FROM visuals WHERE id = ? AND channel_id = ? AND status = 'ready' AND deleted_at IS NULL",
+    visualId, video.channel_id,
+  )
+  if (!visual) throw new UserError('Visual indisponível neste canal.')
+  if (visual.id === video.visual_id) return
+  const channel = get<Channel>('SELECT * FROM channels WHERE id = ?', video.channel_id)!
+  if (!channel.reuse_visuals && get('SELECT 1 FROM videos WHERE visual_id = ? AND id <> ?', visualId, video.id)) {
+    throw new UserError('Visual já reservado em outro vídeo.')
+  }
+  run('UPDATE videos SET visual_id = ? WHERE id = ?', visualId, video.id)
+}
+
+export function setThumbnailVisual(video: Video, visualId: number): void {
+  if (!(video.status === 'queued' && !video.approved_at) && video.status !== 'done') {
+    throw new UserError('A thumbnail só pode ser alterada no rascunho ou antes da publicação.')
+  }
+  const visual = get<Visual>(
+    "SELECT * FROM visuals WHERE id = ? AND channel_id = ? AND status = 'ready' AND deleted_at IS NULL",
+    visualId, video.channel_id,
+  )
+  if (!visual) throw new UserError('Thumbnail indisponível neste canal.')
+  run('UPDATE videos SET thumbnail_visual_id = ? WHERE id = ?',
+    visualId === video.visual_id ? null : visualId, video.id)
+}
+
+export function setDownloaded(video: Video, downloaded: boolean): void {
+  if (video.status !== 'done') throw new UserError('Marque o download somente em vídeos prontos.')
+  run("UPDATE videos SET downloaded_at = CASE WHEN ? THEN datetime('now') ELSE NULL END WHERE id = ?",
+    downloaded ? 1 : 0, video.id)
+}
+
+export function setSchedule(video: Video, date: string | null): void {
+  if (video.status !== 'done') throw new UserError('Só vídeos prontos podem ser agendados.')
+  if (date !== null) requireDate(date)
+  run('UPDATE videos SET planned_date = ? WHERE id = ?', date, video.id)
+}
+
+export function publishVideo(video: Video, url: string, date: string): void {
+  if (video.status !== 'done' && video.status !== 'published') throw new UserError('Vídeo ainda não está pronto.')
+  requireDate(date)
+  let target: URL
+  try { target = new URL(url) } catch { throw new UserError('Informe um link válido do YouTube.') }
+  if (target.protocol !== 'https:' || !['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'].includes(target.hostname)) {
+    throw new UserError('O link precisa ser HTTPS do YouTube ou youtu.be.')
+  }
+  const id = target.hostname === 'youtu.be'
+    ? target.pathname.slice(1).split('/')[0]
+    : target.pathname === '/watch' ? target.searchParams.get('v') : target.pathname.match(/^\/(?:shorts|live)\/([^/]+)/)?.[1]
+  if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) throw new UserError('O link do YouTube não contém um vídeo válido.')
+  run(`UPDATE videos SET status = 'published', youtube_url = ?, published_date = ?,
+       published_at = COALESCE(published_at, datetime('now')),
+       downloaded_at = COALESCE(downloaded_at, datetime('now')) WHERE id = ?`,
+    target.toString(), date, video.id)
+  if (video.status === 'done') autoFill()
+}
+
+export function unpublishVideo(video: Video): void {
+  if (video.status !== 'published' || video.file_deleted) {
+    throw new UserError('Não é possível desmarcar este vídeo publicado.')
+  }
+  run("UPDATE videos SET status = 'done', published_at = NULL, published_date = NULL WHERE id = ?", video.id)
 }
 
 // ── Ações nos vídeos ────────────────────────────────────────────────
@@ -199,15 +337,6 @@ export async function discardVideo(video: Video): Promise<void> {
   cancelJob('video', video.id)
   run('DELETE FROM videos WHERE id = ?', video.id)
   if (video.file) await rm(abs(video.file), { force: true })
-  autoFill()
-}
-
-export function setPublished(video: Video, published: boolean): void {
-  if (published) {
-    run("UPDATE videos SET status = 'published', published_at = datetime('now') WHERE id = ? AND status = 'done'", video.id)
-  } else {
-    run("UPDATE videos SET status = 'done', published_at = NULL WHERE id = ? AND status = 'published' AND file_deleted = 0", video.id)
-  }
   autoFill()
 }
 
@@ -277,7 +406,9 @@ async function loop(): Promise<void> {
         await prepareVisual(visual)
         continue
       }
-      const video = get<Video>("SELECT * FROM videos WHERE status = 'queued' ORDER BY id LIMIT 1")
+      const video = get<Video>(
+        "SELECT * FROM videos WHERE status = 'queued' AND approved_at IS NOT NULL ORDER BY id LIMIT 1",
+      )
       if (video) {
         await renderVideo(video)
         continue

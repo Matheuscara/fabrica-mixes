@@ -3,7 +3,8 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { APP_PASSWORD, DATA_DIR, PORT, PUBLIC_DIR } from './config.ts'
 import { all, errorMessage, get, getChannel, run, UserError, type Song, type Style, type Video, type Visual } from './db.ts'
 import {
-  autoFill, createVideos, deleteVideoFile, discardVideo, retryVideo, setPublished, startWorker, stopWorker, wake,
+  approveDraft, autoFill, createVideos, deleteVideoFile, discardVideo, publishVideo, reorderDraftSong, replaceDraftSong,
+  retryVideo, setDownloaded, setDraftVisual, setSchedule, setThumbnailVisual, startWorker, stopWorker, unpublishVideo, wake,
 } from './jobs.ts'
 import { deleteChannel, deleteSong, deleteVisual, receiveUpload } from './library.ts'
 import { channelPage, dashboardPage, html, page, stateSignature, videoPage, type ChannelSection, type Flash } from './views.ts'
@@ -21,11 +22,23 @@ const channelOf = (req: Request) => found(getChannel(Number(req.params.id)))
 const videoOf = (req: Request) => found(get<Video>('SELECT * FROM videos WHERE id = ?', Number(req.params.id)))
 const visualOf = (req: Request) =>
   found(get<Visual>('SELECT * FROM visuals WHERE id = ? AND deleted_at IS NULL', Number(req.params.id)))
+const songOf = (req: Request) =>
+  found(get<Song>('SELECT * FROM songs WHERE id = ? AND deleted_at IS NULL', Number(req.params.id)))
 
 function int(value: unknown, min: number, max: number, fallback: number): number {
   const n = Number(value)
   return Number.isInteger(n) ? Math.min(max, Math.max(min, n)) : fallback
 }
+
+/** Inteiro vindo de formulário: valor fora do formato vira erro em vez de ser corrigido em silêncio. */
+function intField(value: unknown, min: number, message: string): number {
+  const n = typeof value === 'string' && /^-?\d+$/.test(value.trim()) ? Number(value) : NaN
+  if (!Number.isSafeInteger(n) || n < min) throw new UserError(message)
+  return n
+}
+
+const titleOf = (table: 'songs' | 'visuals', id: number) =>
+  get<{ title: string }>(`SELECT title FROM ${table} WHERE id = ?`, id)?.title
 
 function flash(req: Request): Flash {
   const { msg, err } = req.query
@@ -157,9 +170,10 @@ app.post('/channels/:id/generate', action(req => {
   const choice = String(req.body.style ?? 'auto')
   const style = choice.startsWith('s:') ? choice.slice(2) : null
   const { created, stop } = createVideos(ch, style, int(req.body.count, 1, 50, 1))
+  const drafts = created === 1 ? '1 rascunho criado' : `${created} rascunhos criados`
   return {
     to: `/channels/${ch.id}/videos`,
-    msg: `${created} ${created === 1 ? 'vídeo' : 'vídeos'} na fila.${stop ? ` Parou antes: ${stop}` : ''}`,
+    msg: `${drafts}. Revise e aprove para renderizar.${stop ? ` Parou antes: ${stop}` : ''}`,
   }
 }))
 
@@ -173,10 +187,14 @@ app.post('/channels/:id/upload', async (req, res) => {
 // ── Músicas e visuais ───────────────────────────────────────────────
 
 app.post('/songs/:id/delete', action(async req => {
-  const song = found(get<Song>('SELECT * FROM songs WHERE id = ? AND deleted_at IS NULL', Number(req.params.id)))
+  const song = songOf(req)
   await deleteSong(song)
   return { to: `/channels/${song.channel_id}/songs`, msg: `"${song.title}" excluída.` }
 }))
+
+app.get('/songs/:id/file', (req, res) => {
+  res.sendFile(songOf(req).file, { root: DATA_DIR })
+})
 
 app.post('/visuals/:id/delete', action(async req => {
   const visual = visualOf(req)
@@ -215,27 +233,116 @@ function videoFile(req: Request): { video: Video; file: string } {
   return { video, file: video.file }
 }
 
+/** Nome de arquivo seguro pros downloads: "nome-do-canal-12". */
+function fileStem(video: Video): string {
+  const ch = found(getChannel(video.channel_id))
+  const slug = ch.name.normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+  return `${slug || `canal-${ch.id}`}-${video.number}`
+}
+
 app.get('/videos/:id/file', (req, res) => {
   res.sendFile(videoFile(req).file, { root: DATA_DIR })
 })
 
 app.get('/videos/:id/download', (req, res) => {
   const { video, file } = videoFile(req)
-  const ch = found(getChannel(video.channel_id))
-  const slug = ch.name.normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
-  res.download(file, `${slug || `canal-${ch.id}`}-${video.number}.mp4`, { root: DATA_DIR })
+  res.download(file, `${fileStem(video)}.mp4`, { root: DATA_DIR })
 })
 
-app.post('/videos/:id/publish', action(req => {
+// Miniatura escolhida (ou a do visual do vídeo); visual excluído ainda guarda a miniatura.
+app.get('/videos/:id/thumbnail', (req, res) => {
   const video = videoOf(req)
-  setPublished(video, true)
-  return { to: `/videos/${video.id}`, msg: 'Marcado como publicado.' }
+  const visual = found(get<Visual>(
+    'SELECT * FROM visuals WHERE id = COALESCE((SELECT id FROM visuals WHERE id = ?), ?)',
+    video.thumbnail_visual_id, video.visual_id,
+  ))
+  res.download(`${visual.dir}/thumb.jpg`, `${fileStem(video)}-miniatura.jpg`, { root: DATA_DIR })
+})
+
+app.post('/videos/:id/approve', action(async req => {
+  const video = videoOf(req)
+  await approveDraft(video)
+  return { to: `/videos/${video.id}#etapa`, msg: `Rascunho aprovado: vídeo #${video.number} entrou na fila de renderização.` }
 }))
 
-app.post('/videos/:id/unpublish', action(req => {
+app.post('/videos/:id/reorder', action(async req => {
   const video = videoOf(req)
-  setPublished(video, false)
-  return { to: `/videos/${video.id}` }
+  const position = intField(req.body.position, 0, 'Posição da música inválida.')
+  const raw = String(req.body.direction ?? '').trim()
+  if (raw !== '-1' && raw !== '1') throw new UserError('Direção inválida: só dá pra subir ou descer uma posição.')
+  const direction = raw === '-1' ? -1 : 1
+  const moved = get<{ title: string }>(
+    'SELECT s.title FROM video_songs vs JOIN songs s ON s.id = vs.song_id WHERE vs.video_id = ? AND vs.position = ?',
+    video.id, position,
+  )?.title
+  await reorderDraftSong(video, position, direction)
+  return {
+    to: `/videos/${video.id}#faixas`,
+    msg: `${moved ? `"${moved}"` : 'Música'} ${direction < 0 ? 'subiu' : 'desceu'} para a posição ${position + direction + 1}.`,
+  }
+}))
+
+app.post('/videos/:id/replace-song', action(async req => {
+  const video = videoOf(req)
+  const position = intField(req.body.position, 0, 'Posição da música inválida.')
+  const songId = intField(req.body.song_id, 1, 'Escolha uma música válida para a troca.')
+  await replaceDraftSong(video, position, songId)
+  const title = titleOf('songs', songId)
+  return { to: `/videos/${video.id}#faixas`, msg: `Música da posição ${position + 1} trocada${title ? ` por "${title}"` : ''}.` }
+}))
+
+app.post('/videos/:id/visual', action(async req => {
+  const video = videoOf(req)
+  const visualId = intField(req.body.visual_id, 1, 'Escolha um visual válido.')
+  await setDraftVisual(video, visualId)
+  const title = titleOf('visuals', visualId)
+  return { to: `/videos/${video.id}#visual`, msg: `Visual do vídeo #${video.number} trocado${title ? ` para "${title}"` : ''}.` }
+}))
+
+app.post('/videos/:id/thumbnail', action(async req => {
+  const video = videoOf(req)
+  const visualId = intField(req.body.visual_id, 1, 'Escolha um visual válido para a miniatura.')
+  await setThumbnailVisual(video, visualId)
+  const title = titleOf('visuals', visualId)
+  return { to: `/videos/${video.id}#visual`, msg: `Miniatura do vídeo #${video.number} definida${title ? ` a partir de "${title}"` : ''}.` }
+}))
+
+app.post('/videos/:id/downloaded', action(async req => {
+  const video = videoOf(req)
+  const flag = String(req.body.downloaded ?? '').trim()
+  if (flag !== '1' && flag !== '0') throw new UserError('Valor inválido para "baixado".')
+  await setDownloaded(video, flag === '1')
+  return {
+    to: `/videos/${video.id}#etapa`,
+    msg: flag === '1' ? `Vídeo #${video.number} marcado como baixado.` : `Vídeo #${video.number} desmarcado como baixado.`,
+  }
+}))
+
+app.post('/videos/:id/schedule', action(async req => {
+  const video = videoOf(req)
+  const date = String(req.body.planned_date ?? '').trim() || null
+  await setSchedule(video, date)
+  return {
+    to: `/videos/${video.id}#etapa`,
+    msg: date
+      ? `Vídeo #${video.number} agendado para ${date.split('-').reverse().join('/')}.`
+      : `Agendamento do vídeo #${video.number} removido.`,
+  }
+}))
+
+// Só registra a publicação feita à mão no YouTube; nada é enviado daqui.
+app.post('/videos/:id/publish', action(async req => {
+  const video = videoOf(req)
+  const date = String(req.body.published_date ?? '').trim()
+  await publishVideo(video, String(req.body.youtube_url ?? '').trim(), date)
+  const shown = date.split('-').reverse().join('/')
+  return { to: `/videos/${video.id}#etapa`, msg: `Vídeo #${video.number} registrado como publicado em ${shown}.` }
+}))
+
+app.post('/videos/:id/unpublish', action(async req => {
+  const video = videoOf(req)
+  await unpublishVideo(video)
+  return { to: `/videos/${video.id}#etapa`, msg: `Vídeo #${video.number} não está mais marcado como publicado.` }
 }))
 
 app.post('/videos/:id/discard', action(async req => {
@@ -247,13 +354,13 @@ app.post('/videos/:id/discard', action(async req => {
 app.post('/videos/:id/delete-file', action(async req => {
   const video = videoOf(req)
   await deleteVideoFile(video)
-  return { to: `/videos/${video.id}`, msg: 'Arquivo apagado.' }
+  return { to: `/videos/${video.id}`, msg: `Arquivo do vídeo #${video.number} apagado; o registro continua.` }
 }))
 
 app.post('/videos/:id/retry', action(req => {
   const video = videoOf(req)
   retryVideo(video)
-  return { to: `/videos/${video.id}` }
+  return { to: `/videos/${video.id}`, msg: `Vídeo #${video.number} voltou para a fila de renderização.` }
 }))
 
 app.get('/api/poll', (_req, res) => {
