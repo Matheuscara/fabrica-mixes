@@ -27,6 +27,8 @@ export interface Song {
   file: string
   sha256: string
   duration: number
+  /** Silêncio final ignorado só no render; o MP3 em disco fica intacto. */
+  tail_trim_seconds: number
   size: number
   created_at: string
   deleted_at: string | null
@@ -115,6 +117,7 @@ CREATE TABLE IF NOT EXISTS songs (
   file TEXT NOT NULL,
   sha256 TEXT NOT NULL,
   duration REAL NOT NULL,
+  tail_trim_seconds REAL NOT NULL DEFAULT 0,
   size INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   deleted_at TEXT,
@@ -203,6 +206,9 @@ INSERT INTO styles (channel_id, name)
 const videoColumns = new Set(
   (db.prepare('PRAGMA table_info(videos)').all() as { name: string }[]).map(col => col.name),
 )
+const songColumns = new Set(
+  (db.prepare('PRAGMA table_info(songs)').all() as { name: string }[]).map(col => col.name),
+)
 db.exec('BEGIN IMMEDIATE')
 try {
   if (!videoColumns.has('approved_at')) {
@@ -223,6 +229,10 @@ try {
   // Prontos/publicados ficam em 0 (foram emendados sem crossfade); a fila é recalculada em startWorker.
   if (!videoColumns.has('crossfade_seconds')) {
     db.exec('ALTER TABLE videos ADD COLUMN crossfade_seconds REAL NOT NULL DEFAULT 0')
+  }
+  // Faixas existentes ficam em 0: vídeos históricos mantêm exatamente os mesmos tempos.
+  if (!songColumns.has('tail_trim_seconds')) {
+    db.exec('ALTER TABLE songs ADD COLUMN tail_trim_seconds REAL NOT NULL DEFAULT 0')
   }
   db.exec('COMMIT')
 } catch (err) {

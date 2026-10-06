@@ -119,7 +119,7 @@ export function createVideo(ch: Channel, style: string | null): number {
     }
 
     shuffle(songs)
-    const timing = mixTiming(songs.map(s => s.duration))
+    const timing = mixTiming(songs.map(playedDuration))
     const { next } = get<{ next: number }>(
       'SELECT COALESCE(MAX(number), 0) + 1 AS next FROM videos WHERE channel_id = ?',
       ch.id,
@@ -199,6 +199,11 @@ function requireDate(value: string): void {
   }
 }
 
+/** Seconds of a song heard in the render: its quiet tail is cut only in the ffmpeg filtergraph. */
+function playedDuration(song: Pick<Song, 'duration' | 'tail_trim_seconds'>): number {
+  return Math.min(song.duration, Math.max(1, song.duration - song.tail_trim_seconds))
+}
+
 /** Each track starts `crossfade` seconds before the previous one ends; the last plays to its end. */
 function mixTiming(durations: readonly number[]): { crossfade: number; starts: number[]; duration: number } {
   const crossfade = crossfadeSeconds(durations)
@@ -213,11 +218,11 @@ function mixTiming(durations: readonly number[]): { crossfade: number; starts: n
 
 /** Recomputes overlap, starts and duration from the current track order (inside the caller's tx). */
 function updateDraftTiming(videoId: number): void {
-  const tracks = all<{ position: number; duration: number }>(
-    `SELECT vs.position, s.duration FROM video_songs vs JOIN songs s ON s.id = vs.song_id
+  const tracks = all<{ position: number; duration: number; tail_trim_seconds: number }>(
+    `SELECT vs.position, s.duration, s.tail_trim_seconds FROM video_songs vs JOIN songs s ON s.id = vs.song_id
       WHERE vs.video_id = ? ORDER BY vs.position`, videoId,
   )
-  const { crossfade, starts, duration } = mixTiming(tracks.map(t => t.duration))
+  const { crossfade, starts, duration } = mixTiming(tracks.map(playedDuration))
   tracks.forEach((track, i) => {
     run('UPDATE video_songs SET start = ? WHERE video_id = ? AND position = ?', starts[i]!, videoId, track.position)
   })
@@ -491,9 +496,14 @@ async function renderVideo(video: Video): Promise<void> {
     if (gone) throw new Error(`A música "${gone.title}" foi excluída.`)
     if (visual.deleted_at) throw new Error(`O visual "${visual.title}" foi excluído.`)
 
+    const tracks = songs.map(s => ({
+      file: abs(s.file),
+      duration: s.duration,
+      tailTrimSeconds: s.duration - playedDuration(s),
+    }))
     let lastWrite = 0
     await step(self, () =>
-      renderMix(path.join(abs(visual.dir), 'loop.mp4'), songs.map(s => abs(s.file)), video.duration, video.crossfade_seconds, out, seconds => {
+      renderMix(path.join(abs(visual.dir), 'loop.mp4'), tracks, video.duration, video.crossfade_seconds, out, seconds => {
         const now = Date.now()
         if (now - lastWrite < 1000) return
         lastWrite = now

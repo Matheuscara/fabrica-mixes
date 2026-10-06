@@ -198,19 +198,19 @@ const row = (sql, ...params) => {
 const rows = (sql, ...params) => db.prepare(sql).all(...params).map(found => ({ ...found }))
 const videoRow = id => row('SELECT * FROM videos WHERE id = ?', id)
 const tracks = videoId => rows(
-  `SELECT vs.position, vs.start, s.id, s.duration FROM video_songs vs JOIN songs s ON s.id = vs.song_id
+  `SELECT vs.position, vs.start, s.id, s.duration, s.tail_trim_seconds FROM video_songs vs JOIN songs s ON s.id = vs.song_id
     WHERE vs.video_id = ? ORDER BY vs.position`,
   videoId,
 )
 
 /** A segunda faixa entra antes do fim da primeira; a duração perde a sobreposição. */
 function assertTiming(video, list) {
-  const overlap = list.length < 2 ? 0 : Math.min(2, ...list.map(track => track.duration / 2))
+  const overlap = list.length < 2 ? 0 : Math.min(2, ...list.map(track => (track.duration - track.tail_trim_seconds) / 2))
   let start = 0
   list.forEach((track, i) => {
     assert.equal(track.position, i, 'posições das faixas')
     near(track.start, start, 0.001, `início da faixa ${i}`)
-    start += track.duration
+    start += track.duration - track.tail_trim_seconds
     if (i < list.length - 1) start -= overlap
   })
   near(video.duration, start, 0.001, 'duração do vídeo com crossfade')
@@ -231,7 +231,12 @@ async function main() {
   await mkdir(mediaDir, { recursive: true })
   const media = name => path.join(mediaDir, name)
   const generate = args => ffmpeg(['-loglevel', 'error', ...args])
-  await generate(['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=2', '-ac', '2', media('tone.wav')])
+  await generate([
+    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=2',
+    '-f', 'lavfi', '-i', 'anullsrc=channel_layout=mono:sample_rate=48000:d=1.5',
+    '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1[a]', '-map', '[a]',
+    '-ac', '2', media('tone.wav'),
+  ])
   await generate(['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-t', '3', media('quiet.wav')])
   await generate(['-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000:duration=1.5', '-ac', '2', media('chime.wav')])
   await generate(['-f', 'lavfi', '-i', 'color=c=0x2a6f97:s=320x180', '-frames:v', '1', '-update', '1', media('cover.png')])
@@ -263,8 +268,11 @@ async function main() {
   const quiet = song('quiet')
   assert.ok(tone && quiet, 'músicas enviadas não foram registradas')
   assert.equal(tone.style, 'lofi')
-  near(tone.duration, 2, 0.1, 'duração medida de tone.wav')
+  near(tone.duration, 3.5, 0.1, 'original inclui a cauda silenciosa')
   near(quiet.duration, 3, 0.1, 'duração medida de quiet.wav')
+  near(tone.tail_trim_seconds, 0.8, 0.15, 'cauda só marcada para o render')
+  assert.equal(quiet.tail_trim_seconds, 0, 'música toda silenciosa não deve ser cortada')
+  assert.deepEqual((await get(`/songs/${tone.id}/file`)).body, await readFile(media('tone.wav')), 'upload não pode cortar o arquivo original')
   const cover = visual('cover.png')
   assert.ok(cover, 'imagem enviada não foi registrada')
   await waitVisualReady(cover.id)

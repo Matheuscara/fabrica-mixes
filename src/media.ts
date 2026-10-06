@@ -78,6 +78,52 @@ export async function measureAudio(file: string): Promise<number> {
   return seconds
 }
 
+/** Só os últimos segundos do arquivo são examinados; nada antes deles é cortado. */
+const TAIL_WINDOW_SECONDS = 12
+/** Abaixo de -45 dB por pelo menos 0,25 s conta como silêncio. */
+const TAIL_SILENCE_FILTER = 'silencedetect=noise=-45dB:duration=0.25'
+/** Silêncio mantido no fim, pra música não terminar seca. */
+const TAIL_KEEP_SECONDS = 0.7
+const MAX_TAIL_TRIM_SECONDS = 10
+/** Folga numérica dos tempos do log do ffmpeg ao comparar com as bordas da janela. */
+const EDGE_TOLERANCE_SECONDS = 0.01
+
+/**
+ * Examina até 12 s do fim (a faixa inteira, se for mais curta) sem alterar o arquivo.
+ * Só aceita silêncio que chega ao fim e começa depois do início da janela: áudio todo
+ * silencioso nunca é encurtado. Mantém 0,7 s de respiro, nunca remove mais de 10 s nem
+ * deixa menos de 1 s de música, e arredonda para baixo em milissegundos.
+ * Em MP3 VBR sem cabeçalho, -sseof usa o fim real mesmo se a duração estimada variar.
+ */
+export async function tailTrimSeconds(file: string, duration: number): Promise<number> {
+  if (!(duration > 1)) return 0
+  const { stdout, stderr } = await execFileAsync('ffmpeg', [
+    '-hide_banner', '-nostdin', '-nostats', '-loglevel', 'info', '-progress', 'pipe:1',
+    ...(duration > TAIL_WINDOW_SECONDS ? ['-sseof', String(-TAIL_WINDOW_SECONDS)] : []),
+    '-i', file, '-map', '0:a:0', '-af', TAIL_SILENCE_FILTER, '-f', 'null', '-',
+  ])
+  let end = 0
+  for (const [, us] of stdout.matchAll(/^out_time_us=(\d+)$/gm)) end = Math.max(end, Number(us) / 1e6)
+  // Último trecho de silêncio; ffmpeg novo fecha com silence_end no fim do áudio, o antigo deixa aberto.
+  let silenceStart = NaN
+  let silenceEnd: number | null = null
+  for (const [, kind, value] of stderr.matchAll(/^\[\w*silencedetect\w* @ [^\]]+\] silence_(start|end): (\S+)/gm)) {
+    if (kind === 'start') {
+      silenceStart = Number(value)
+      silenceEnd = null
+    } else {
+      silenceEnd = Number(value)
+    }
+  }
+  if (silenceEnd !== null) {
+    if (!(silenceEnd >= end - EDGE_TOLERANCE_SECONDS)) return 0
+    end = Math.max(end, silenceEnd)
+  }
+  if (!(silenceStart > Math.max(0, end - TAIL_WINDOW_SECONDS) + EDGE_TOLERANCE_SECONDS)) return 0
+  const trim = Math.min(MAX_TAIL_TRIM_SECONDS, duration - 1, end - silenceStart - TAIL_KEEP_SECONDS)
+  return trim > 0 ? Math.floor(trim * 1000) / 1000 : 0
+}
+
 const FIT =
   `scale=${VIDEO.width}:${VIDEO.height}:force_original_aspect_ratio=decrease,` +
   `pad=${VIDEO.width}:${VIDEO.height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p`
@@ -130,13 +176,14 @@ export function crossfadeSeconds(durations: readonly number[]): number {
 
 /**
  * Loop de vídeo copiado (sem recodificar) + músicas emendadas em AAC.
+ * Música com `tailTrimSeconds` > 0 para em `duration - tailTrimSeconds` (o arquivo segue inteiro).
  * Cada música é normalizada pra estéreo 48k float; com `crossfade` > 0 as vizinhas se sobrepõem
  * com acrossfade linear (tri, sem somar picos), senão são concatenadas direto.
  * Corta em `duration` com -t porque -shortest com cópia de vídeo passa do fim do áudio.
  */
 export function renderMix(
   loop: string,
-  songs: string[],
+  songs: readonly { file: string; duration: number; tailTrimSeconds: number }[],
   duration: number,
   crossfade: number,
   out: string,
@@ -144,9 +191,13 @@ export function renderMix(
 ): FfmpegJob {
   const n = songs.length
   const last = n === 1 ? 'aout' : `a${n - 1}`
-  const graph = songs.map(
-    (_, i) => `[${i + 1}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[${i === n - 1 ? last : `a${i}`}]`,
-  )
+  const graph = songs.map((song, i) => {
+    const trim = song.tailTrimSeconds > 0
+      ? `atrim=end=${(song.duration - song.tailTrimSeconds).toFixed(6)},asetpts=PTS-STARTPTS,`
+      : ''
+    const label = i === n - 1 ? last : `a${i}`
+    return `[${i + 1}:a]${trim}aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[${label}]`
+  })
   if (n > 1 && crossfade > 0) {
     // [a0][a1]→[x1], [x1][a2]→[x2], …, última saída vira [aout].
     for (let i = 1; i < n; i++) {
@@ -160,7 +211,7 @@ export function renderMix(
   return ffmpeg(
     [
       '-stream_loop', '-1', '-i', loop,
-      ...songs.flatMap(file => ['-i', file]),
+      ...songs.flatMap(({ file }) => ['-i', file]),
       '-filter_complex', graph.join(';'),
       '-map', '0:v', '-map', '[aout]',
       '-c:v', 'copy',

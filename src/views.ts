@@ -762,7 +762,7 @@ function settingsSection(ch: Channel): Html {
 
 // ── Página do vídeo ─────────────────────────────────────────────────
 
-type TrackRow = Song & { start: number; position: number }
+type TrackRow = Song & { start: number; position: number; mix_duration: number }
 
 const FLOW: Stage[] = ['draft', 'production', 'ready', 'scheduled', 'published']
 
@@ -790,7 +790,8 @@ export function videoPage(video: Video): Html {
   const visual = get<Visual>('SELECT * FROM visuals WHERE id = ?', video.visual_id)!
   const thumb = video.thumbnail_visual_id ? get<Visual>('SELECT * FROM visuals WHERE id = ?', video.thumbnail_visual_id)! : visual
   const songs = all<TrackRow>(
-    `SELECT s.*, vs.start, vs.position FROM video_songs vs JOIN songs s ON s.id = vs.song_id WHERE vs.video_id = ? ORDER BY vs.position`,
+    `SELECT s.*, vs.start, vs.position, s.duration - s.tail_trim_seconds AS mix_duration
+       FROM video_songs vs JOIN songs s ON s.id = vs.song_id WHERE vs.video_id = ? ORDER BY vs.position`,
     video.id,
   )
   const hasFile = !!video.file && !video.file_deleted
@@ -1022,10 +1023,10 @@ function tracksSection(video: Video, ch: Channel, songs: TrackRow[], draft: bool
     <div class="section-head"><div><span class="section-kicker">SEQUÊNCIA</span><h2>${draft ? 'Revisar faixas' : 'Músicas do mix'}</h2></div>
       <span class="section-note">${plural(songs.length, 'faixa', 'faixas')} · ${clock(video.duration)}</span></div>
     ${draft ? trackEditor(video, ch, songs) : html`<div class="scroll"><table class="compact">
-      <thead><tr><th>#</th><th>Início</th><th>Música</th><th>Duração</th></tr></thead>
+      <thead><tr><th>#</th><th>Início</th><th>Música</th><th>Duração no mix</th></tr></thead>
       <tbody>${songs.map((s, i) => html`<tr>
         <td>${i + 1}</td><td>${clock(s.start)}</td>
-        <td>${s.title}${s.deleted_at ? html` <span class="muted">(excluída)</span>` : ''}</td><td>${clock(s.duration)}</td>
+        <td>${s.title}${s.deleted_at ? html` <span class="muted">(excluída)</span>` : ''}</td><td>${clock(s.mix_duration)}</td>
       </tr>`)}</tbody>
     </table></div>`}
     <div class="tracklist-head"><div><h3>Tracklist para copiar</h3>
@@ -1053,7 +1054,7 @@ function trackEditor(video: Video, ch: Channel, songs: TrackRow[]): Html {
       <span class="track-num" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
       <div class="track-info">
         <strong>${s.title}</strong>
-        <span class="muted">Início ${clock(s.start)} · ${clock(s.duration)}</span>
+        <span class="muted">Início ${clock(s.start)} · ${clock(s.mix_duration)} no mix${s.tail_trim_seconds ? html` · original ${clock(s.duration)}` : ''}</span>
         ${s.deleted_at ? html`<span class="err">Excluída da biblioteca: troque esta faixa.</span>` : ''}
       </div>
       ${s.deleted_at ? '' : html`<audio class="track-audio" controls preload="none" src="/songs/${s.id}/file" aria-label="Ouvir ${s.title}"></audio>`}

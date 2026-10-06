@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import { MAX_UPLOAD_BYTES, TMP_DIR, abs } from './config.ts'
 import { errorMessage, get, run, tx, UserError, type Song, type Visual } from './db.ts'
 import { cancelChannelJobs, cancelJob, wake } from './jobs.ts'
-import { measureAudio, probe } from './media.ts'
+import { measureAudio, probe, tailTrimSeconds } from './media.ts'
 
 const AUDIO_EXT = ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.opus']
 const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
@@ -99,6 +99,8 @@ async function addSong(channelId: number, file: Received, style: string): Promis
   if (!info.hasAudio) throw new UserError('arquivo sem áudio')
   const duration = await measureAudio(file.tmp)
   if (duration < 1) throw new UserError('áudio vazio')
+  // Só metadado: o silêncio final é pulado no render, os bytes (e o sha256) ficam como enviados.
+  const tailTrim = existing ? existing.tail_trim_seconds : await tailTrimSeconds(file.tmp, duration)
   const title = info.title ?? path.basename(name, path.extname(name))
   const rel = `channels/${channelId}/songs/${file.sha256.slice(0, 16)}${file.ext}`
   await mkdir(path.dirname(abs(rel)), { recursive: true })
@@ -113,15 +115,17 @@ async function addSong(channelId: number, file: Received, style: string): Promis
   if (existing) {
     // Tinha sido excluída e ficou só como histórico: volta a valer.
     run(
-      'UPDATE songs SET style = ?, title = ?, file = ?, duration = ?, size = ?, deleted_at = NULL WHERE id = ?',
-      style, title, rel, duration, file.size, existing.id,
+      `UPDATE songs SET style = ?, title = ?, file = ?, duration = ?, tail_trim_seconds = ?, size = ?, deleted_at = NULL
+        WHERE id = ?`,
+      style, title, rel, duration, tailTrim, file.size, existing.id,
     )
     return { name, kind: 'song', status: 'restored' }
   }
   try {
     run(
-      'INSERT INTO songs (channel_id, style, title, file, sha256, duration, size) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      channelId, style, title, rel, file.sha256, duration, file.size,
+      `INSERT INTO songs (channel_id, style, title, file, sha256, duration, tail_trim_seconds, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      channelId, style, title, rel, file.sha256, duration, tailTrim, file.size,
     )
   } catch (err) {
     if (!errorMessage(err).includes('UNIQUE constraint failed')) throw err

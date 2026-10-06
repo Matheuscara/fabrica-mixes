@@ -63,9 +63,10 @@ aprovar o render.*
 - **Render sem GPU**: cada imagem/vídeo enviado é convertido **uma vez** num loop H.264 1080p30
   (com barras pretas se não for 16:9). Depois, cada render só copia esse loop e codifica o áudio
   em AAC: cerca de 1–2 min por hora de mix numa CPU comum.
-- **Transições suaves**: músicas vizinhas se sobrepõem em um crossfade de até 2 segundos
-  (menor para faixas curtas). Os horários da tracklist do rascunho acompanham a sobreposição;
-  vídeos já renderizados não são alterados.
+- **Transições suaves sem alterar os MP3s**: as músicas enviadas mantêm os bytes e a duração integral.
+  Só ao renderizar o vídeo uma cauda quase inaudível é encurtada, antes de sobrepor faixas vizinhas
+  num crossfade de até 2 segundos. A tracklist do rascunho segue o áudio mixado; vídeos já
+  renderizados não mudam.
 - **Modo automático** (por canal): mantém até X rascunhos ou vídeos não publicados, reservando material
   novo, mas nunca renderiza sem aprovação. Se houver vídeo com erro, ele pausa até você resolver.
 - **Tracklist**: cada vídeo mostra o visual usado e as músicas com o tempo de início, pronta para
