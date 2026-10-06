@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.ts",
     "dev": "node --watch --disable-warning=ExperimentalWarning src/server.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "smoke": "node --disable-warning=ExperimentalWarning test/smoke.mjs"
   },
   "dependencies": {
     "busboy": "^1.6.0",
