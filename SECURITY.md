@@ -1,56 +1,59 @@
-# Política de segurança
+# Security policy
 
-## Versões suportadas
+[English](SECURITY.md) | [Português (Brasil)](SECURITY.pt-BR.md) · Project overview: [README](README.md) | [README em português](README.pt-BR.md)
 
-Só a branch `main` recebe correções. Atualize com `git pull && docker compose up -d --build`
-antes de relatar um problema.
+## Supported versions
 
-| Versão | Suportada |
+Only the `main` branch receives fixes. Update with `git pull && docker compose up -d --build`
+before reporting a problem.
+
+| Version | Supported |
 | --- | --- |
-| `main` | Sim |
-| Commits e forks antigos | Não |
+| `main` | Yes |
+| Older commits and forks | No |
 
-## Modelo de segurança
+## Security model
 
-A Fábrica de Mixes foi feita para uso pessoal, numa máquina ou rede de confiança.
+Fábrica de Mixes is built for personal use on a trusted machine or network.
 
-- **Não há autenticação nem controle de acesso.** Qualquer pessoa ou programa que alcance a porta
-  pode enviar arquivos, alterar canais, aprovar renders e excluir músicas, visuais, vídeos e canais.
-- **Não há proteção contra CSRF.** Uma página maliciosa aberta num navegador que alcança o site pode
-  enviar formulários para ele. Não navegue em sites desconhecidos no mesmo navegador/perfil que usa
-  para acessar a Fábrica, ou proteja o acesso com um proxy que exija login.
-- **Os arquivos enviados são processados pelo ffmpeg.** Mídia maliciosa pode explorar falhas de
-  decodificação. Envie só arquivos seus e reconstrua a imagem com frequência para atualizar o ffmpeg.
-- **Uploads grandes podem encher o disco** (limite padrão de 4 GB por arquivo, `MAX_UPLOAD_MB`).
+- **There is no authentication or access control.** Any person or program that can reach the port
+  can upload files, change channels, approve renders, and delete songs, visuals, videos, and channels.
+- **There is no CSRF protection.** A malicious page opened in a browser that can reach the site can
+  submit forms to it. Do not browse unknown sites in the same browser/profile you use to access
+  Fábrica, or protect access with a proxy that requires login.
+- **Uploaded files are processed by ffmpeg.** Malicious media can exploit decoding bugs. Upload only
+  your own files and rebuild the image often to keep ffmpeg up to date.
+- **Large uploads can fill the disk** (default limit of 4 GB per file, `MAX_UPLOAD_MB`).
 
-## Como implantar com segurança
+## Deploying safely
 
-- Mantenha o padrão `BIND_HOST=127.0.0.1` e acesse por túnel SSH, VPN ou proxy reverso com login
-  (SSO, oauth2-proxy, Authelia, autenticação básica etc.).
-- **Nunca** use `BIND_HOST=0.0.0.0`, encaminhe a porta no roteador ou publique o serviço na internet,
-  nem o deixe acessível em redes não confiáveis (Wi-Fi público, rede compartilhada).
-- Em rede local, use o IP da interface certa em `BIND_HOST` e um firewall que libere só os
-  dispositivos necessários. O Docker publica portas com regras próprias de iptables, que podem passar
-  por cima do `ufw`/firewalld; use a cadeia `DOCKER-USER` se precisar filtrar.
-- Rodando sem Docker, o processo Node escuta em todas as interfaces: bloqueie a porta no firewall.
-- Faça backups da pasta de dados (veja o README) — a falta de autenticação significa que um acesso
-  indevido pode apagar tudo.
+- Keep the default `BIND_HOST=127.0.0.1` and access the app through an SSH tunnel, a VPN, or a
+  reverse proxy with login (SSO, oauth2-proxy, Authelia, basic authentication, etc.).
+- **Never** use `BIND_HOST=0.0.0.0`, forward the port on your router, or publish the service to the
+  internet, and do not leave it reachable on untrusted networks (public Wi-Fi, shared networks).
+- On a local network, set `BIND_HOST` to the IP of the right interface and use a firewall that allows
+  only the devices you need. Docker publishes ports with its own iptables rules, which can bypass
+  `ufw`/firewalld; use the `DOCKER-USER` chain if you need filtering.
+- When running without Docker, the Node process listens on all interfaces: block the port in your
+  firewall.
+- Back up the data folder (see the [README](README.md)) — the lack of authentication means that
+  unauthorized access can delete everything.
 
-## Como relatar uma vulnerabilidade
+## Reporting a vulnerability
 
-**Não abra issue pública** para falhas de segurança.
+**Do not open a public issue** for security problems.
 
-Use o relato privado do GitHub: aba **Security → Report a vulnerability** do repositório
-(<https://github.com/Matheuscara/fabrica-mixes/security/advisories/new>). Inclua:
+Use GitHub private reporting: the repository's **Security → Report a vulnerability** tab
+(<https://github.com/Matheuscara/fabrica-mixes/security/advisories/new>). Include:
 
-- o que acontece e qual o impacto;
-- passos para reproduzir (commit usado, configuração do `.env` sem segredos, requisições ou arquivos);
-- se possível, uma sugestão de correção.
+- what happens and what the impact is;
+- steps to reproduce (commit used, `.env` configuration without secrets, requests or files);
+- if possible, a suggested fix.
 
-Este é um projeto pessoal, sem prazo garantido de resposta. Depois da correção na `main`, o aviso é
-publicado com crédito a quem relatou, se desejar.
+This is a personal project with no guaranteed response time. Once the fix lands on `main`, the
+advisory is published with credit to the reporter, if they wish.
 
-A ausência de login e de proteção CSRF descrita acima é uma limitação conhecida e documentada, não
-uma vulnerabilidade nova. Relatos sobre como o app se comporta exposto além do que este documento
-recomenda também ficam fora do escopo. Relate, por exemplo: acesso a arquivos fora da pasta de dados
-(path traversal), execução de comandos, XSS nas páginas, ou falhas que afetem o host além do container.
+The lack of login and CSRF protection described above is a known, documented limitation, not a new
+vulnerability. Reports about how the app behaves when exposed beyond what this document recommends
+are also out of scope. Do report, for example: access to files outside the data folder (path
+traversal), command execution, XSS in the pages, or flaws that affect the host beyond the container.
