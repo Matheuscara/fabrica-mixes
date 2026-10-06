@@ -67,6 +67,9 @@ render.*
 - **GPU-free rendering**: each uploaded image/video is converted **once** into an H.264 1080p30 loop
   (letterboxed with black bars if it is not 16:9). After that, each render just copies this loop and
   encodes the audio as AAC: roughly 1–2 min per hour of mix on a regular CPU.
+- **Smooth transitions**: adjacent songs overlap with a gentle crossfade of up to 2 seconds
+  (shorter for short tracks). Draft tracklist timestamps reflect the overlap; already rendered
+  videos remain unchanged.
 - **Automatic mode** (per channel): keeps up to X drafts or unpublished videos, reserving new
   material, but never renders without approval. If any video has an error, it pauses until you
   resolve it.

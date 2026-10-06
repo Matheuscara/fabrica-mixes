@@ -4,7 +4,7 @@ import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { TMP_DIR, abs } from './config.ts'
 import { all, errorMessage, get, run, tx, UserError, type Channel, type Song, type Video, type Visual } from './db.ts'
-import { prepareLoop, probe, renderMix, thumbnail, type FfmpegJob } from './media.ts'
+import { crossfadeSeconds, prepareLoop, probe, renderMix, thumbnail, type FfmpegJob } from './media.ts'
 
 // ── Material disponível ─────────────────────────────────────────────
 
@@ -119,20 +119,21 @@ export function createVideo(ch: Channel, style: string | null): number {
     }
 
     shuffle(songs)
-    const duration = songs.reduce((sum, s) => sum + s.duration, 0)
+    const timing = mixTiming(songs.map(s => s.duration))
     const { next } = get<{ next: number }>(
       'SELECT COALESCE(MAX(number), 0) + 1 AS next FROM videos WHERE channel_id = ?',
       ch.id,
     )!
     const { id } = run(
-      `INSERT INTO videos (channel_id, number, style, visual_id, status, duration)
-       VALUES (?, ?, ?, ?, 'queued', ?)`,
-      ch.id, next, chosen, visual.id, duration,
+      `INSERT INTO videos (channel_id, number, style, visual_id, status, duration, crossfade_seconds)
+       VALUES (?, ?, ?, ?, 'queued', ?, ?)`,
+      ch.id, next, chosen, visual.id, timing.duration, timing.crossfade,
     )
-    let start = 0
     songs.forEach((song, position) => {
-      run('INSERT INTO video_songs (video_id, position, song_id, start) VALUES (?, ?, ?, ?)', id, position, song.id, start)
-      start += song.duration
+      run(
+        'INSERT INTO video_songs (video_id, position, song_id, start) VALUES (?, ?, ?, ?)',
+        id, position, song.id, timing.starts[position]!,
+      )
     })
     return id
   })
@@ -198,17 +199,29 @@ function requireDate(value: string): void {
   }
 }
 
+/** Each track starts `crossfade` seconds before the previous one ends; the last plays to its end. */
+function mixTiming(durations: readonly number[]): { crossfade: number; starts: number[]; duration: number } {
+  const crossfade = crossfadeSeconds(durations)
+  const starts: number[] = []
+  let start = 0
+  for (const duration of durations) {
+    starts.push(start)
+    start += duration - crossfade
+  }
+  return { crossfade, starts, duration: start + crossfade }
+}
+
+/** Recomputes overlap, starts and duration from the current track order (inside the caller's tx). */
 function updateDraftTiming(videoId: number): void {
   const tracks = all<{ position: number; duration: number }>(
     `SELECT vs.position, s.duration FROM video_songs vs JOIN songs s ON s.id = vs.song_id
       WHERE vs.video_id = ? ORDER BY vs.position`, videoId,
   )
-  let start = 0
-  for (const track of tracks) {
-    run('UPDATE video_songs SET start = ? WHERE video_id = ? AND position = ?', start, videoId, track.position)
-    start += track.duration
-  }
-  run('UPDATE videos SET duration = ? WHERE id = ?', start, videoId)
+  const { crossfade, starts, duration } = mixTiming(tracks.map(t => t.duration))
+  tracks.forEach((track, i) => {
+    run('UPDATE video_songs SET start = ? WHERE video_id = ? AND position = ?', starts[i]!, videoId, track.position)
+  })
+  run('UPDATE videos SET duration = ?, crossfade_seconds = ? WHERE id = ?', duration, crossfade, videoId)
 }
 
 /** A draft reserves material but cannot enter the ffmpeg queue before approval. */
@@ -391,6 +404,12 @@ export function startWorker(): void {
   // O que estava rodando quando o processo caiu volta pra fila.
   run("UPDATE visuals SET status = 'pending' WHERE status = 'processing'")
   run("UPDATE videos SET status = 'queued', progress = 0 WHERE status = 'rendering'")
+  // Fila criada antes do crossfade ganha a sobreposição; done/published mantêm arquivo e duração.
+  tx(() => {
+    for (const { id } of all<{ id: number }>(
+      "SELECT id FROM videos WHERE status IN ('queued', 'failed') AND crossfade_seconds = 0",
+    )) updateDraftTiming(id)
+  })
   rmSync(TMP_DIR, { recursive: true, force: true })
   mkdirSync(TMP_DIR, { recursive: true })
   autoFill()
@@ -474,7 +493,7 @@ async function renderVideo(video: Video): Promise<void> {
 
     let lastWrite = 0
     await step(self, () =>
-      renderMix(path.join(abs(visual.dir), 'loop.mp4'), songs.map(s => abs(s.file)), video.duration, out, seconds => {
+      renderMix(path.join(abs(visual.dir), 'loop.mp4'), songs.map(s => abs(s.file)), video.duration, video.crossfade_seconds, out, seconds => {
         const now = Date.now()
         if (now - lastWrite < 1000) return
         lastWrite = now

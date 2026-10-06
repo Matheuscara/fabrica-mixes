@@ -112,18 +112,56 @@ export function thumbnail(loop: string, out: string): FfmpegJob {
   return ffmpeg(['-i', loop, '-vf', 'thumbnail,scale=480:-2', '-frames:v', '1', '-q:v', '4', out])
 }
 
+/** Teto do crossfade entre músicas vizinhas. */
+const MAX_CROSSFADE_SECONDS = 2
+
+/**
+ * Sobreposição única do vídeo: 0 com uma música; senão min(2s, metade da música mais curta),
+ * pra cada faixa caber o fade de entrada e o de saída sem se cruzarem.
+ * Arredondado pra baixo em milissegundos: o mesmo número vai pro filtro e pro cálculo da timeline.
+ */
+export function crossfadeSeconds(durations: readonly number[]): number {
+  if (durations.length < 2) return 0
+  let shortest = Infinity
+  for (const d of durations) if (d < shortest) shortest = d
+  const seconds = Math.min(MAX_CROSSFADE_SECONDS, shortest / 2)
+  return seconds > 0 ? Math.floor(seconds * 1000) / 1000 : 0
+}
+
 /**
  * Loop de vídeo copiado (sem recodificar) + músicas emendadas em AAC.
+ * Cada música é normalizada pra estéreo 48k float; com `crossfade` > 0 as vizinhas se sobrepõem
+ * com acrossfade linear (tri, sem somar picos), senão são concatenadas direto.
  * Corta em `duration` com -t porque -shortest com cópia de vídeo passa do fim do áudio.
  */
-export function renderMix(loop: string, songs: string[], duration: number, out: string, onProgress: (seconds: number) => void): FfmpegJob {
-  const chains = songs.map((_, i) => `[${i + 1}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`)
-  const inputs = songs.map((_, i) => `[a${i}]`).join('')
+export function renderMix(
+  loop: string,
+  songs: string[],
+  duration: number,
+  crossfade: number,
+  out: string,
+  onProgress: (seconds: number) => void,
+): FfmpegJob {
+  const n = songs.length
+  const last = n === 1 ? 'aout' : `a${n - 1}`
+  const graph = songs.map(
+    (_, i) => `[${i + 1}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[${i === n - 1 ? last : `a${i}`}]`,
+  )
+  if (n > 1 && crossfade > 0) {
+    // [a0][a1]→[x1], [x1][a2]→[x2], …, última saída vira [aout].
+    for (let i = 1; i < n; i++) {
+      const left = i === 1 ? '[a0]' : `[x${i - 1}]`
+      const output = i === n - 1 ? '[aout]' : `[x${i}]`
+      graph.push(`${left}[a${i}]acrossfade=d=${crossfade}:c1=tri:c2=tri${output}`)
+    }
+  } else if (n > 1) {
+    graph.push(`${songs.map((_, i) => `[a${i}]`).join('')}concat=n=${n}:v=0:a=1[aout]`)
+  }
   return ffmpeg(
     [
       '-stream_loop', '-1', '-i', loop,
       ...songs.flatMap(file => ['-i', file]),
-      '-filter_complex', `${chains.join(';')};${inputs}concat=n=${songs.length}:v=0:a=1[aout]`,
+      '-filter_complex', graph.join(';'),
       '-map', '0:v', '-map', '[aout]',
       '-c:v', 'copy',
       '-c:a', 'aac', '-aac_coder', 'fast', '-b:a', AUDIO_BITRATE,

@@ -203,15 +203,17 @@ const tracks = videoId => rows(
   videoId,
 )
 
-/** Faixas em posições 0..n-1, cada uma começando onde a anterior termina; duração do vídeo = soma. */
+/** A segunda faixa entra antes do fim da primeira; a duração perde a sobreposição. */
 function assertTiming(video, list) {
+  const overlap = list.length < 2 ? 0 : Math.min(2, ...list.map(track => track.duration / 2))
   let start = 0
   list.forEach((track, i) => {
     assert.equal(track.position, i, 'posições das faixas')
     near(track.start, start, 0.001, `início da faixa ${i}`)
     start += track.duration
+    if (i < list.length - 1) start -= overlap
   })
-  near(video.duration, start, 0.001, 'duração do vídeo')
+  near(video.duration, start, 0.001, 'duração do vídeo com crossfade')
 }
 
 async function waitVisualReady(id) {
@@ -316,8 +318,14 @@ async function main() {
   await refuse(`/videos/${videoId}/reorder`, { position: String(list.length - 1), direction: '1' })
   await act(`/videos/${videoId}/reorder`, { position: '0', direction: '1' })
   list = tracks(videoId)
-  const reviewed = [order[1], order[0]]
-  assert.deepEqual(list.map(track => track.id), reviewed, 'reordenação não trocou as faixas')
+  assert.deepEqual(list.map(track => track.id), [order[1], order[0]], 'reordenação não trocou as faixas')
+  assertTiming(videoRow(videoId), list)
+  if (list[0].id !== quiet.id) {
+    await act(`/videos/${videoId}/reorder`, { position: '0', direction: '1' })
+    list = tracks(videoId)
+  }
+  const reviewed = [quiet.id, chime.id]
+  assert.deepEqual(list.map(track => track.id), reviewed)
   assertTiming(videoRow(videoId), list)
 
   await act(`/videos/${videoId}/visual`, { visual_id: String(alt.id) })
@@ -351,12 +359,15 @@ async function main() {
   assert.equal(videoStream.width, 1920)
   assert.equal(videoStream.height, 1080)
   near(info.duration, video.duration, 0.35, 'duração do MP4')
-  // A ordem revisada chega ao áudio final: o meio de cada faixa tem o tom (chime) ou silêncio (quiet).
-  for (const track of tracks(videoId)) {
-    const level = await meanVolume(output, track.start + track.duration / 2 - 0.25, 0.5)
-    if (track.id === chime.id) assert.ok(level > -40, `faixa ${track.position} (chime) deveria ter som: ${level} dB`)
-    else assert.ok(level < -60, `faixa ${track.position} (quiet) deveria ser silêncio: ${level} dB`)
-  }
+  // O segundo tom deve entrar durante a cauda da primeira faixa, sem lacuna de silêncio.
+  const transition = tracks(videoId)[1].start
+  near(transition, quiet.duration - 0.75, 0.05, 'faixa seguinte começa antes da anterior terminar')
+  const before = await meanVolume(output, transition - 0.4, 0.25)
+  const during = await meanVolume(output, transition + 0.2, 0.25)
+  const after = await meanVolume(output, transition + 0.95, 0.25)
+  assert.ok(before < -60, `trecho anterior deveria ser silêncio: ${before} dB`)
+  assert.ok(during > -40, `nova faixa precisa entrar durante o crossfade: ${during} dB`)
+  assert.ok(after > -40, `nova faixa deve continuar após a troca: ${after} dB`)
   await get(`/videos/${videoId}/thumbnail`)
   await pagesRender(channelId, videoId)
 

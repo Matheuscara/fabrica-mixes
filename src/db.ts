@@ -74,6 +74,8 @@ export interface Video {
   progress: number
   error: string | null
   duration: number
+  /** Sobreposição entre faixas vizinhas no render; 0 = concat (vídeos anteriores ao crossfade). */
+  crossfade_seconds: number
   size: number | null
   file: string | null
   file_deleted: number
@@ -169,6 +171,7 @@ CREATE TABLE IF NOT EXISTS videos (
   youtube_url TEXT,
   published_date TEXT,
   thumbnail_visual_id INTEGER REFERENCES visuals(id),
+  crossfade_seconds REAL NOT NULL DEFAULT 0,
   UNIQUE (channel_id, number)
 );
 CREATE INDEX IF NOT EXISTS videos_visual ON videos (visual_id);
@@ -216,6 +219,10 @@ try {
   if (!videoColumns.has('published_date')) db.exec('ALTER TABLE videos ADD COLUMN published_date TEXT')
   if (!videoColumns.has('thumbnail_visual_id')) {
     db.exec('ALTER TABLE videos ADD COLUMN thumbnail_visual_id INTEGER REFERENCES visuals(id)')
+  }
+  // Prontos/publicados ficam em 0 (foram emendados sem crossfade); a fila é recalculada em startWorker.
+  if (!videoColumns.has('crossfade_seconds')) {
+    db.exec('ALTER TABLE videos ADD COLUMN crossfade_seconds REAL NOT NULL DEFAULT 0')
   }
   db.exec('COMMIT')
 } catch (err) {
