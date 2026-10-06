@@ -55,6 +55,8 @@ render.*
 - **Prompt per style**: on the Songs page you create a style and store the prompt used to generate its
   tracks, so you can edit and copy it later. The site only stores the recipe; it **does not generate
   music**. Styles created by uploading a folder appear without a prompt until you fill one in.
+- **Listen before using**: play each song on the Songs page. Starting another song pauses the previous
+  one, and background updates do not interrupt playback.
 - **No duplication**:
   - a file with the same content (SHA-256 hash) in the same channel is skipped on upload;
   - a song or visual that is already in a video is not picked again — unless you enable

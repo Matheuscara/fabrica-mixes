@@ -706,7 +706,8 @@ function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
       ${list.length ? html`<div class="scroll"><table class="compact">
         <thead><tr><th>Música</th><th>Duração</th><th>Usos</th><th>Enviada</th><th></th></tr></thead>
         <tbody>${list.map(s => html`<tr>
-          <td>${s.title}</td><td>${clock(s.duration)}</td>
+          <td>${s.title}<audio class="song-audio" controls preload="none" src="/songs/${s.id}/file" aria-label="Ouvir ${s.title}"></audio></td>
+          <td>${clock(s.duration)}</td>
           <td>${s.uses ? s.uses : html`<span class="badge done">nova</span>`}</td>
           <td class="muted">${when(s.created_at)}</td>
           <td>${postButton(`/songs/${s.id}/delete`, 'Excluir', { confirm: `Excluir "${s.title}"?`, cls: 'danger small' })}</td>
@@ -717,7 +718,7 @@ function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
   return html`<section class="card" id="musicas">
     <div class="section-head"><div><span class="section-kicker">BIBLIOTECA DE ÁUDIO</span><h2>Estilos e prompts</h2></div>
       <span class="section-note">${styles.length} ${styles.length === 1 ? 'estilo' : 'estilos'} · ${songs.length} músicas</span></div>
-    <p class="section-note">Guarde a receita de cada estilo aqui e copie o prompt quando for gerar músicas no seu PC.</p>
+    <p class="section-note">Guarde a receita de cada estilo aqui e copie o prompt quando for gerar músicas no seu PC. Use o player abaixo do título para ouvir cada faixa.</p>
     ${groups.length ? groups : html`<div class="empty-state"><h3>Nenhum estilo ainda.</h3><p>Crie um estilo e salve o primeiro prompt de geração.</p></div>`}
     <details class="style-creator" ${styles.length ? '' : 'open'}>
       <summary>Criar estilo com prompt</summary>

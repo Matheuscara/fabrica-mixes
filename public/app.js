@@ -116,6 +116,13 @@ addEventListener('pageshow', e => {
 })
 schedulePoll()
 
+document.addEventListener('play', event => {
+  if (!event.target.matches?.('audio.song-audio')) return
+  for (const audio of document.querySelectorAll('audio.song-audio')) {
+    if (audio !== event.target) audio.pause()
+  }
+}, true)
+
 function showProgress(progress) {
   for (const [id, pct] of Object.entries(progress)) {
     for (const bar of document.querySelectorAll(`[data-progress="${id}"]`)) {
@@ -134,10 +141,14 @@ function serverChanged() {
     return
   }
   if (typingNow()) return // espera a pessoa parar de digitar
+  if ([...document.querySelectorAll('audio, video')].some(media => !media.paused && !media.ended)) {
+    showStale('Há novidades no servidor. Atualize quando terminar de ouvir.')
+    return
+  }
   location.reload()
 }
 
-function showStale() {
+function showStale(message = 'Há novidades no servidor. A página espera você salvar ou desfazer a edição.') {
   if (staleNotice || staleDismissed) return
   staleNotice = el('p', 'toast stale')
   staleNotice.setAttribute('role', 'status')
@@ -147,7 +158,7 @@ function showStale() {
     e.stopPropagation()
     reloadPage()
   })
-  staleNotice.append(el('span', '', 'Há novidades no servidor. A página espera você salvar ou desfazer a edição.'), button)
+  staleNotice.append(el('span', '', message), button)
   staleNotice.addEventListener('click', () => {
     staleNotice.remove()
     staleNotice = null

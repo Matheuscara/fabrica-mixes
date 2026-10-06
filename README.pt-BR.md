@@ -51,6 +51,8 @@ aprovar o render.*
 - **Prompt por estilo**: na página Músicas você cria o estilo e guarda o prompt usado para gerar as
   faixas, para editar e copiar depois. O site só guarda a receita; ele **não gera música**. Estilos
   criados pelo envio de uma pasta aparecem sem prompt até você preencher.
+- **Ouça antes de usar**: cada faixa tem um player na página Músicas. Tocar outra pausa a anterior,
+  e atualizações em segundo plano não interrompem a reprodução.
 - **Sem duplicação**:
   - arquivo com o mesmo conteúdo (hash SHA-256) no mesmo canal é ignorado no envio;
   - música ou visual que já está em algum vídeo não é sorteado de novo — a não ser que você ligue
