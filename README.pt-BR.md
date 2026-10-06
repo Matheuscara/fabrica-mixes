@@ -2,6 +2,14 @@
 
 [English](README.md) | **Português (Brasil)**
 
+[![Site](https://img.shields.io/badge/site-matheuscara.github.io%2Ffabrica--mixes-f3a865)](https://matheuscara.github.io/fabrica-mixes/)
+[![Versão v0.1.0](https://img.shields.io/badge/release-v0.1.0-9fcaa5)](https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0)
+[![Licença: MIT](https://img.shields.io/badge/license-MIT-eee8de)](LICENSE)
+
+**[Site do projeto](https://matheuscara.github.io/fabrica-mixes/)** ·
+**[Versão v0.1.0](https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0)** ·
+**[Instalação](#início-rápido-docker)** · **[Licença MIT](LICENSE)**
+
 Sistema auto-hospedado que monta mixes longos de música para o YouTube — sem precisar de GPU.
 Você envia músicas e imagens/loops para cada canal; o sistema reserva **N músicas do mesmo estilo
 + 1 visual** num rascunho. Você revisa músicas, ordem, visual e miniatura, aprova, e o vídeo
@@ -11,6 +19,24 @@ renderizado fica disponível para baixar. A publicação no YouTube continua man
 > arquivos. O Compose publica a porta somente em `127.0.0.1` por padrão. Leia
 > [Acesso pela rede](#acesso-pela-rede-com-segurança) e [SECURITY.pt-BR.md](SECURITY.pt-BR.md) antes de abrir
 > para outros dispositivos.
+
+## Imagens
+
+Capturadas de uma instância de demonstração isolada, com canais, músicas e visuais fictícios — não são
+dados de produção.
+
+![Visão geral do canal: gráficos de vídeos por etapa e de músicas novas/usadas por estilo](docs/assets/overview.webp)
+
+*Visão geral do canal: vídeos por etapa e músicas novas x usadas por estilo.*
+
+![Quadro de vídeos: colunas kanban de Rascunho a Publicado](docs/assets/board.webp)
+
+*Quadro de vídeos: Rascunho → Produção → Pronto → Agendado → Publicado.*
+
+![Revisão do rascunho: ordem das músicas, visual e escolha da miniatura antes de aprovar](docs/assets/review.webp)
+
+*Revisão do rascunho: reordene ou troque músicas, troque o visual e escolha a miniatura antes de
+aprovar o render.*
 
 ## Recursos
 
@@ -66,6 +92,10 @@ políticas do YouTube; essa responsabilidade continua com quem publica.
 - Disco: veja [Espaço em disco](#espaço-em-disco).
 
 ## Início rápido (Docker)
+
+> **O site é só informativo.** [matheuscara.github.io/fabrica-mixes](https://matheuscara.github.io/fabrica-mixes/)
+> é uma página estática; não existe versão hospedada ou online do app. Para usar a Fábrica de Mixes,
+> rode-a você mesmo na sua máquina ou servidor, como abaixo.
 
 ```sh
 git clone https://github.com/Matheuscara/fabrica-mixes.git

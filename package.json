@@ -1,5 +1,6 @@
 {
   "name": "fabrica-mixes",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Gera mixes longos para YouTube juntando músicas + imagem/loop de cada canal.",

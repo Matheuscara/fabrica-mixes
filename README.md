@@ -2,6 +2,14 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
+[![Website](https://img.shields.io/badge/website-matheuscara.github.io%2Ffabrica--mixes-f3a865)](https://matheuscara.github.io/fabrica-mixes/)
+[![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-9fcaa5)](https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0)
+[![License: MIT](https://img.shields.io/badge/license-MIT-eee8de)](LICENSE)
+
+**[Project website](https://matheuscara.github.io/fabrica-mixes/)** ·
+**[v0.1.0 release](https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0)** ·
+**[Installation](#quick-start-docker)** · **[MIT License](LICENSE)**
+
 A self-hosted system that assembles long music mixes for YouTube — no GPU required.
 You upload songs and images/loops for each channel; the system reserves **N songs of the same style
 + 1 visual** in a draft. You review the songs, their order, the visual and the thumbnail, approve it,
@@ -14,6 +22,25 @@ and the rendered video becomes available for download. Publishing to YouTube rem
 > delete files. By default, Compose publishes the port only on `127.0.0.1`. Read
 > [Secure network access](#secure-network-access) and [SECURITY.md](SECURITY.md) before opening it
 > to other devices.
+
+## Screenshots
+
+Captured from an isolated demo instance with fictitious channels, songs and visuals — not production
+data. The interface is in Brazilian Portuguese.
+
+![Channel overview ("Visão geral"): charts of videos per stage and new/used songs per style](docs/assets/overview.webp)
+
+*Channel overview ("Visão geral"): videos per stage and new vs. used songs per style.*
+
+![Video board ("Vídeos"): kanban columns from Rascunho (draft) to Publicado (published)](docs/assets/board.webp)
+
+*Video board: Rascunho → Produção → Pronto → Agendado → Publicado (Draft → Production → Ready →
+Scheduled → Published).*
+
+![Draft review: song order, visual and thumbnail choice before approval](docs/assets/review.webp)
+
+*Draft review: reorder or swap songs, swap the visual and pick the thumbnail before approving the
+render.*
 
 ## Features
 
@@ -74,6 +101,10 @@ YouTube policies; that responsibility stays with whoever publishes.
 - Disk: see [Disk space](#disk-space).
 
 ## Quick start (Docker)
+
+> **The website is informational only.** [matheuscara.github.io/fabrica-mixes](https://matheuscara.github.io/fabrica-mixes/)
+> is a static page; there is no hosted or online version of the app. To use Fábrica de Mixes you run
+> it yourself on your own machine or server, as below.
 
 ```sh
 git clone https://github.com/Matheuscara/fabrica-mixes.git

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fábrica de Mixes — self-hosted long music mixes for YouTube</title>
+  <meta name="description" content="Fábrica de Mixes is a self-hosted, GPU-free app that assembles long music mixes from your own songs and visuals. You review and approve every video, then publish it to YouTube yourself. MIT licensed, v0.1.0.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0c0d11">
+  <link rel="canonical" href="https://matheuscara.github.io/fabrica-mixes/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Fábrica de Mixes — self-hosted long music mixes for YouTube">
+  <meta property="og:description" content="Assemble long music mixes from your own songs and visuals on a regular CPU. Review, approve, download, publish manually.">
+  <meta property="og:url" content="https://matheuscara.github.io/fabrica-mixes/">
+  <meta property="og:image" content="https://matheuscara.github.io/fabrica-mixes/assets/overview.webp">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230c0d11'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23f3a865' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%239fcaa5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top" aria-label="Fábrica de Mixes, back to top">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Fábrica de Mixes</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="#workflow">Workflow</a></li>
+          <li><a href="#screenshots">Screenshots</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#install">Install</a></li>
+          <li><a class="nav-github" href="https://github.com/Matheuscara/fabrica-mixes">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="wrap hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span class="tag">v0.1.0</span>
+            <span>Self-hosted</span>
+            <span aria-hidden="true">·</span>
+            <span>No GPU required</span>
+            <span aria-hidden="true">·</span>
+            <span>MIT License</span>
+          </p>
+          <h1 id="hero-title">Long music mixes for YouTube, assembled on your own machine.</h1>
+          <p class="lede">
+            Fábrica de Mixes organizes the songs and visuals you already have, drafts hour-long mixes
+            from them, and renders the approved ones on a regular CPU. You stay in control of every
+            step: nothing renders without your approval, and publishing to YouTube is done by you, by hand.
+          </p>
+          <div class="cta-row">
+            <a class="button primary" href="https://github.com/Matheuscara/fabrica-mixes#quick-start-docker">Install from the README</a>
+            <a class="button" href="https://github.com/Matheuscara/fabrica-mixes">View on GitHub</a>
+            <a class="button ghost" href="https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0">v0.1.0 release</a>
+          </div>
+          <p class="hero-note">
+            This page is documentation only. There is no hosted version of the app: you run it on your
+            own computer or server. The web interface is in Brazilian Portuguese —
+            <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/README.pt-BR.md" hreflang="pt-BR">leia o README em português</a>.
+          </p>
+        </div>
+
+        <figure class="pipeline" aria-labelledby="pipeline-caption">
+          <ol class="pipeline-stages">
+            <li class="stage stage-draft"><span class="stage-name">Draft</span><span class="stage-pt" lang="pt-BR">Rascunho</span></li>
+            <li class="stage stage-production"><span class="stage-name">Production</span><span class="stage-pt" lang="pt-BR">Produção</span></li>
+            <li class="stage stage-ready"><span class="stage-name">Ready</span><span class="stage-pt" lang="pt-BR">Pronto</span></li>
+            <li class="stage stage-scheduled"><span class="stage-name">Scheduled</span><span class="stage-pt" lang="pt-BR">Agendado</span></li>
+            <li class="stage stage-published"><span class="stage-name">Published</span><span class="stage-pt" lang="pt-BR">Publicado</span></li>
+          </ol>
+          <figcaption id="pipeline-caption">
+            Every video moves through five stages on the channel board. You approve the draft; you
+            publish the result.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="about" aria-labelledby="about-title">
+      <div class="wrap">
+        <p class="kicker">What it is</p>
+        <h2 id="about-title">A production line for mixes, not a music generator.</h2>
+        <div class="scope-grid">
+          <div class="scope-card does">
+            <h3>What it does</h3>
+            <ul>
+              <li>Keeps a separate library of songs, visuals and styles for each YouTube channel.</li>
+              <li>Reserves <strong>N songs of the same style + 1 visual</strong> for each draft, never mixing styles in one video.</li>
+              <li>Avoids reusing a song or visual that is already in a video, unless you enable reuse.</li>
+              <li>Renders a 1080p30 MP4 on the CPU — roughly 1–2 minutes per hour of mix.</li>
+              <li>Produces a timestamped tracklist ready to paste into the YouTube description.</li>
+            </ul>
+          </div>
+          <div class="scope-card doesnt">
+            <h3>What it does not do</h3>
+            <ul>
+              <li><strong>It does not generate music.</strong> It can store the prompt you used for a style, so you can copy it later.</li>
+              <li><strong>It does not upload to YouTube.</strong> You download the MP4 and thumbnail and publish manually.</li>
+              <li>It does not check usage rights or YouTube policies. Use only material you own or have licensed.</li>
+              <li>It has no login. See the <a href="#security">security notice</a> before running it.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="workflow" aria-labelledby="workflow-title">
+      <div class="wrap">
+        <p class="kicker">Workflow</p>
+        <h2 id="workflow-title">From a folder of songs to a downloaded video.</h2>
+        <ol class="steps">
+          <li>
+            <h3>Create a channel</h3>
+            <p>Each YouTube channel gets its own songs, visuals, styles and videos.</p>
+          </li>
+          <li>
+            <h3>Upload material</h3>
+            <p>Drag a folder named after a style, like <code>lofi-jazz-lounge/</code>, and its songs inherit that style. Images and short loops become visuals. Duplicates are detected by hash and skipped.</p>
+          </li>
+          <li>
+            <h3>Generate drafts</h3>
+            <p>Draft a specific style or rotate through the available ones. Optional automatic mode keeps a few drafts ready, but still never renders on its own.</p>
+          </li>
+          <li>
+            <h3>Review</h3>
+            <p>Reorder and swap songs, change the visual and pick the thumbnail.</p>
+          </li>
+          <li>
+            <h3>Approve</h3>
+            <p>Only then does the video enter the render queue. Videos render one at a time; failures can be retried.</p>
+          </li>
+          <li>
+            <h3>Download</h3>
+            <p>Grab the finished MP4, the thumbnail and the tracklist.</p>
+          </li>
+          <li>
+            <h3>Publish on YouTube yourself</h3>
+            <p>Record the planned date, the link and the publication date so the board stays accurate.</p>
+          </li>
+          <li>
+            <h3>Free up space</h3>
+            <p>Optionally delete the file of a published video. Its record and history are kept.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" id="screenshots" aria-labelledby="screenshots-title">
+      <div class="wrap">
+        <p class="kicker">Screenshots</p>
+        <h2 id="screenshots-title">The interface, as it runs locally.</h2>
+        <p class="section-intro">
+          Captured from a local demo instance with fictitious songs and visuals. Labels are in
+          Brazilian Portuguese, the language of the interface. Select an image to open it at full size.
+        </p>
+        <div class="gallery">
+          <figure class="shot shot-wide">
+            <a href="assets/overview.webp">
+              <img src="assets/overview.webp" width="1800" height="1911" loading="lazy" decoding="async"
+                   alt="Channel overview page (Visão geral): summary cards for drafts to review, videos in production, ready and scheduled videos, and new songs and visuals available, alongside charts of videos per stage and of new versus used songs per style, with the channel navigation in the sidebar.">
+            </a>
+            <figcaption><strong>Overview.</strong> What needs review, what is rendering, and how much unused material each style has left.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/board.webp">
+              <img src="assets/board.webp" width="1800" height="1125" loading="lazy" decoding="async"
+                   alt="Video board laid out as kanban columns — Rascunho, Produção, Pronto, Agendado and Publicado (Draft, Production, Ready, Scheduled, Published) — each holding cards for the channel's videos.">
+            </a>
+            <figcaption><strong>Video board.</strong> Every video, from draft to published, in one kanban view.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/review.webp">
+              <img src="assets/review.webp" width="1800" height="2828" loading="lazy" decoding="async"
+                   alt="Draft review page: the stage stepper for the video, the ordered list of songs with controls to reorder and swap them, the chosen visual and thumbnail, and the Aprovar e renderizar (approve and render) button.">
+            </a>
+            <figcaption><strong>Draft review.</strong> Order, songs, visual and thumbnail are yours to change before approving.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <p class="kicker">Features</p>
+        <h2 id="features-title">Built for running a few channels without a GPU.</h2>
+        <ul class="feature-grid">
+          <li>
+            <h3>GPU-free rendering</h3>
+            <p>Each visual is converted once into an H.264 1080p30 loop. Renders then copy the loop and encode only the audio.</p>
+          </li>
+          <li>
+            <h3>One style per video</h3>
+            <p>Every song has a style and a video never mixes them. Store the prompt behind each style for your own reference.</p>
+          </li>
+          <li>
+            <h3>No accidental repeats</h3>
+            <p>Used songs and visuals are not picked again by default; with reuse enabled, the least-used ones go first.</p>
+          </li>
+          <li>
+            <h3>Approval gate</h3>
+            <p>Manual or automatic, drafts always wait for you. Automatic mode pauses while any video has an error.</p>
+          </li>
+          <li>
+            <h3>Ready-to-paste tracklist</h3>
+            <p>Each video lists its visual and every song with its start time for the YouTube description.</p>
+          </li>
+          <li>
+            <h3>Plain, portable data</h3>
+            <p>One SQLite database plus a media folder, with documented backup and restore procedures.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="security" aria-labelledby="security-title">
+      <div class="wrap">
+        <aside class="warning" aria-labelledby="security-title">
+          <p class="warning-label"><span class="warning-icon" aria-hidden="true">!</span> Security notice</p>
+          <h2 id="security-title">There is no login. Keep it on localhost.</h2>
+          <p>
+            Fábrica de Mixes has <strong>no authentication</strong>. Anyone who can reach its port can upload,
+            change and delete your files. The Docker Compose setup publishes the port on
+            <code>127.0.0.1</code> only, so by default it is reachable just from the machine running it.
+          </p>
+          <p>To use it from another device, prefer, in this order:</p>
+          <ol>
+            <li>An <strong>SSH tunnel</strong>, which exposes nothing:
+              <pre><code>ssh -N -L 8080:127.0.0.1:8080 user@server</code></pre>
+            </li>
+            <li>A <strong>VPN</strong> such as WireGuard or Tailscale, binding only to the VPN interface.</li>
+            <li>A <strong>reverse proxy with its own login</strong> in front of the app.</li>
+            <li>A <strong>trusted local network</strong> with a firewall that allows only your devices.</li>
+          </ol>
+          <p class="warning-strong">
+            Never bind to <code>0.0.0.0</code> or forward the port on your router to untrusted networks or
+            the internet. Running without Docker (<code>npm start</code>) listens on all interfaces.
+          </p>
+          <p class="warning-links">
+            <a href="https://github.com/Matheuscara/fabrica-mixes#secure-network-access">Secure network access guide</a>
+            <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/SECURITY.md">Security policy and private reporting</a>
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section alt" id="install" aria-labelledby="install-title">
+      <div class="wrap install-grid">
+        <div>
+          <p class="kicker">Install</p>
+          <h2 id="install-title">Run it with Docker in a few commands.</h2>
+          <p>
+            You need Docker Engine with the Compose plugin; the image ships Node and ffmpeg. Without
+            Docker, you need Node 22.18 or newer plus <code>ffmpeg</code> and <code>ffprobe</code>.
+            Run it in a dedicated VM or container.
+          </p>
+          <pre class="terminal" aria-label="Quick start commands"><code>git clone https://github.com/Matheuscara/fabrica-mixes.git
+cd fabrica-mixes
+cp .env.example .env    # review BIND_HOST, PORT, DATA_PATH, TZ
+docker compose up -d --build</code></pre>
+          <p>
+            Then open <code>http://localhost:8080</code> on the same machine. Configuration, disk-space
+            estimates, backup and restore are covered in the README.
+          </p>
+          <div class="cta-row">
+            <a class="button primary" href="https://github.com/Matheuscara/fabrica-mixes#quick-start-docker">Full installation guide</a>
+            <a class="button" href="https://github.com/Matheuscara/fabrica-mixes/blob/main/README.pt-BR.md" hreflang="pt-BR" lang="pt-BR">Guia em português</a>
+          </div>
+        </div>
+        <div class="release-card">
+          <p class="release-version">v0.1.0</p>
+          <h3>First public release</h3>
+          <p>Release notes and the tagged source are on GitHub.</p>
+          <a class="button" href="https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0">Read the v0.1.0 release</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="contribute" aria-labelledby="contribute-title">
+      <div class="wrap">
+        <p class="kicker">Open source</p>
+        <h2 id="contribute-title">Contribute, report, reuse.</h2>
+        <ul class="link-cards">
+          <li>
+            <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/CONTRIBUTING.md">
+              <span class="link-title">Contributing guide</span>
+              <span class="link-desc">Set up, run the smoke test and submit changes. Bug reports, docs in English or Portuguese, and code are welcome.</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/Matheuscara/fabrica-mixes/issues">
+              <span class="link-title">Issues</span>
+              <span class="link-desc">Report bugs and suggest improvements. Report vulnerabilities privately, as described in the security policy.</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/LICENSE">
+              <span class="link-title">MIT License</span>
+              <span class="link-desc">Free to use, modify and redistribute under the terms of the MIT License.</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p>
+        <strong>Fábrica de Mixes</strong> v0.1.0 · Released under the
+        <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/LICENSE">MIT License</a>.
+      </p>
+      <p>
+        This is a static project page. The app is self-hosted and is not available online here.
+      </p>
+      <p class="footer-links">
+        <a href="https://github.com/Matheuscara/fabrica-mixes">GitHub repository</a>
+        <a href="https://github.com/Matheuscara/fabrica-mixes/releases/tag/v0.1.0">Release v0.1.0</a>
+        <a href="https://github.com/Matheuscara/fabrica-mixes/blob/main/README.pt-BR.md" hreflang="pt-BR" lang="pt-BR">README em português</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
