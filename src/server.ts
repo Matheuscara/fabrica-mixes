@@ -129,12 +129,15 @@ app.post('/channels/:id/styles/:styleId/prompt', action(req => {
 app.post('/channels/:id/settings', action(req => {
   const ch = channelOf(req)
   const b = req.body as Record<string, string | undefined>
+  const producer = (b.producer_name ?? ch.producer_name).trim()
+  if (producer.length > 100) throw new UserError('Nome da produção musical deve ter no máximo 100 caracteres.')
   run(
-    `UPDATE channels SET name = ?, description = ?, songs_per_video = ?, reuse_songs = ?, reuse_visuals = ?,
-                         auto_enabled = ?, auto_buffer = ?
+    `UPDATE channels SET name = ?, description = ?, producer_name = ?, songs_per_video = ?, reuse_songs = ?,
+                         reuse_visuals = ?, auto_enabled = ?, auto_buffer = ?
       WHERE id = ?`,
     b.name?.trim() || ch.name,
     (b.description ?? '').trim(),
+    producer,
     int(b.songs_per_video, 1, 500, ch.songs_per_video),
     b.reuse_songs ? 1 : 0,
     b.reuse_visuals ? 1 : 0,

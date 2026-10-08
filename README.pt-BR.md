@@ -69,8 +69,10 @@ aprovar o render.*
   renderizados não mudam.
 - **Modo automático** (por canal): mantém até X rascunhos ou vídeos não publicados, reservando material
   novo, mas nunca renderiza sem aprovação. Se houver vídeo com erro, ele pausa até você resolver.
-- **Tracklist**: cada vídeo mostra o visual usado e as músicas com o tempo de início, pronta para
-  copiar na descrição do YouTube.
+- **Título e descrição para YouTube**: cada vídeo guarda um título de 100 caracteres (99 fillers
+  Hangul e um `֍` em posição aleatória). Copie o título e a descrição com os horários e nomes das
+  músicas e o produtor configurado nos ajustes do canal. O YouTube pode recusar títulos quase
+  invisíveis; a publicação continua manual.
 - **Pós-publicação**: registre download, data planejada, link e data de publicação; depois de publicar,
   "Apagar arquivo" libera o espaço do vídeo e mantém o registro.
 

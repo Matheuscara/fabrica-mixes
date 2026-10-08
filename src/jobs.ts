@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import { mkdirSync, rmSync } from 'node:fs'
 import { mkdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -66,6 +67,13 @@ export function capacity(ch: Channel): Capacity {
 
 // ── Montagem dos vídeos ─────────────────────────────────────────────
 
+/** 100 caracteres quase invisíveis: 99 U+3164 com um U+058D numa posição aleatória. */
+function youtubeTitle(): string {
+  const filler = '\u3164'.repeat(99)
+  const at = randomInt(100)
+  return filler.slice(0, at) + '\u058d' + filler.slice(at)
+}
+
 /**
  * Reserves a reviewable draft: one style, N songs and a visual. Nothing renders until approved.
  * `style = null` rotates through the least recently used styles.
@@ -125,9 +133,9 @@ export function createVideo(ch: Channel, style: string | null): number {
       ch.id,
     )!
     const { id } = run(
-      `INSERT INTO videos (channel_id, number, style, visual_id, status, duration, crossfade_seconds)
-       VALUES (?, ?, ?, ?, 'queued', ?, ?)`,
-      ch.id, next, chosen, visual.id, timing.duration, timing.crossfade,
+      `INSERT INTO videos (channel_id, number, style, youtube_title, visual_id, status, duration, crossfade_seconds)
+       VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`,
+      ch.id, next, chosen, youtubeTitle(), visual.id, timing.duration, timing.crossfade,
     )
     songs.forEach((song, position) => {
       run(
@@ -414,6 +422,12 @@ export function startWorker(): void {
     for (const { id } of all<{ id: number }>(
       "SELECT id FROM videos WHERE status IN ('queued', 'failed') AND crossfade_seconds = 0",
     )) updateDraftTiming(id)
+  })
+  // Vídeos anteriores ao título invisível ganham um, uma vez só; nada mais muda neles.
+  tx(() => {
+    for (const { id } of all<{ id: number }>("SELECT id FROM videos WHERE youtube_title = ''")) {
+      run('UPDATE videos SET youtube_title = ? WHERE id = ?', youtubeTitle(), id)
+    }
   })
   rmSync(TMP_DIR, { recursive: true, force: true })
   mkdirSync(TMP_DIR, { recursive: true })

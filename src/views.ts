@@ -77,7 +77,7 @@ const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 
 /** Muda quando qualquer coisa relevante muda; o JS recarrega a página quando ela muda. */
 export function stateSignature(): string {
   const { sig } = get<{ sig: string }>(
-    `SELECT (SELECT COUNT(*) FROM channels) || '|' ||
+    `SELECT (SELECT COUNT(*) || ':' || COALESCE(group_concat(id || ':' || name || ':' || producer_name, ','), '') FROM channels) || '|' ||
             (SELECT COUNT(*) || '-' || COALESCE(MAX(id), 0) FROM songs WHERE deleted_at IS NULL) || '|' ||
             (SELECT COALESCE(group_concat(id || status, ','), '') FROM visuals WHERE deleted_at IS NULL) || '|' ||
             (SELECT COALESCE(group_concat(id || ':' || status || ':' || file_deleted || ':' || visual_id || ':' ||
@@ -735,10 +735,15 @@ function songsSection(songs: SongRow[], styles: Style[], base: string): Html {
 function settingsSection(ch: Channel): Html {
   return html`<section class="card" id="config">
     <div class="section-head"><div><span class="section-kicker">PREFERÊNCIAS</span><h2>Ajustes do canal</h2></div></div>
-    <p class="section-note">Essas opções valem para os próximos rascunhos; os vídeos já criados não mudam.</p>
+    <p class="section-note">A produção musical aparece na descrição de todos os vídeos, inclusive os já criados.
+      As demais opções valem para os próximos rascunhos; os vídeos já criados não mudam.</p>
     <form method="post" action="/channels/${ch.id}/settings" class="stack">
       <label>Nome <input name="name" value="${ch.name}" required maxlength="100"></label>
       <label>Tema / descrição <input name="description" value="${ch.description}" maxlength="300"></label>
+      <label>Produção musical (créditos na descrição do YouTube)
+        <input name="producer_name" value="${ch.producer_name}" maxlength="100" placeholder="${ch.name}"
+          aria-describedby="producer-hint">
+        <span class="field-hint" id="producer-hint">Em branco, usa o nome do canal.</span></label>
       <label>Músicas por vídeo <input type="number" name="songs_per_video" value="${ch.songs_per_video}" min="1" max="500"></label>
       <label class="check"><input type="checkbox" name="reuse_songs" ${ch.reuse_songs ? 'checked' : ''}>
         Reaproveitar músicas já usadas (escolhe as menos usadas primeiro)</label>
@@ -1018,7 +1023,9 @@ function visualChoices(video: Video, kind: 'visual' | 'thumbnail', title: string
 }
 
 function tracksSection(video: Video, ch: Channel, songs: TrackRow[], draft: boolean): Html {
-  const tracklist = songs.map(s => `${clock(s.start)} ${s.title}`).join('\n')
+  const producer = ch.producer_name.trim() || ch.name.trim()
+  // Recalculada a cada render a partir da ordem atual: trocar/reordenar faixas ou mudar o crédito já reflete aqui.
+  const description = `Produção musical: ${producer}\n\nFaixas:\n${songs.map(s => `${clock(s.start)} ${s.title}`).join('\n')}`
   return html`<section class="card" id="faixas">
     <div class="section-head"><div><span class="section-kicker">SEQUÊNCIA</span><h2>${draft ? 'Revisar faixas' : 'Músicas do mix'}</h2></div>
       <span class="section-note">${plural(songs.length, 'faixa', 'faixas')} · ${clock(video.duration)}</span></div>
@@ -1029,12 +1036,27 @@ function tracksSection(video: Video, ch: Channel, songs: TrackRow[], draft: bool
         <td>${s.title}${s.deleted_at ? html` <span class="muted">(excluída)</span>` : ''}</td><td>${clock(s.mix_duration)}</td>
       </tr>`)}</tbody>
     </table></div>`}
-    <div class="tracklist-head"><div><h3>Tracklist para copiar</h3>
+    <div class="tracklist-head"><div><h3>Para publicar no YouTube</h3>
       <p class="section-note">${draft
-        ? 'Os horários se ajustam sozinhos quando você muda a ordem ou troca uma faixa.'
-        : 'Vídeo importado manualmente? Confira a ordem e os horários antes de usar esta lista.'}</p></div>
-      <button type="button" data-copy="tracklist">Copiar lista</button></div>
-    <textarea id="tracklist" readonly rows="4" aria-label="Tracklist do vídeo">${tracklist}</textarea>
+        ? 'Os horários da descrição se ajustam sozinhos quando você muda a ordem ou troca uma faixa.'
+        : 'Vídeo importado manualmente? Confira a ordem e os horários antes de usar a descrição.'}</p></div></div>
+    <div class="copy-field">
+      <div class="copy-field-head">
+        <label for="youtube-title">Título do vídeo <span class="muted">(100 caracteres)</span></label>
+        <button type="button" data-copy="youtube-title" ${video.youtube_title ? '' : 'disabled'}>Copiar título</button>
+      </div>
+      <input id="youtube-title" class="youtube-title" readonly spellcheck="false" value="${video.youtube_title}"
+        aria-describedby="youtube-title-hint">
+      <p class="field-hint" id="youtube-title-hint">Parece vazio de propósito: 99 espaços invisíveis e um ֍, fixos para este vídeo.
+        O “Mix #${video.number}” fica só aqui no app.</p>
+    </div>
+    <div class="copy-field">
+      <div class="copy-field-head">
+        <label for="youtube-description">Descrição do vídeo</label>
+        <button type="button" data-copy="youtube-description">Copiar descrição</button>
+      </div>
+      <textarea id="youtube-description" readonly spellcheck="false" rows="${Math.min(songs.length + 3, 14)}">${description}</textarea>
+    </div>
   </section>`
 }
 

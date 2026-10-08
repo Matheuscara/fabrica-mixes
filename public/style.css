@@ -1055,6 +1055,7 @@ form.inline button { vertical-align: middle; }
 .stack label > select,
 .stack > input { width: 100%; }
 .stack label > input[type=number] { width: 8rem; max-width: 100%; }
+.field-hint { margin: 0; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
 .stack label.check {
   display: flex;
   gap: 0.7rem;
@@ -1702,8 +1703,12 @@ details[data-key] > summary .badge { margin-left: 0.25rem; }
 .tracklist-head > * { min-width: 0; }
 .tracklist-head h3 { margin: 0; }
 .tracklist-head .section-note { margin: 0.2rem 0 0; }
-.tracklist-head [data-copy] { flex: none; }
-#tracklist { background: var(--ink-0); color: var(--text-soft); }
+.copy-field { display: grid; gap: 0.4rem; min-width: 0; margin-top: 0.9rem; }
+.copy-field-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.5rem 1rem; flex-wrap: wrap; }
+.copy-field-head label { min-width: 0; font-size: 0.9rem; font-weight: 560; color: var(--text-soft); }
+.copy-field-head [data-copy] { flex: none; }
+.copy-field :is(input, textarea) { width: 100%; min-width: 0; color: var(--text-soft); }
+.copy-field input { font-family: var(--font-mono); font-size: 0.85rem; }
 .player-note { margin: 0.65rem 0.15rem 0.1rem; font-size: 0.84rem; color: var(--muted); }
 
 /* ── Página do vídeo: etapas e próximo passo ───────────────────────── */
@@ -2334,7 +2339,7 @@ main:has(.board-section) { max-width: 1760px; }
 
   :is(.video-controls, .video-layout .actions) > *, :is(.video-controls, .video-layout .actions) form.inline { flex: 1 1 auto; }
   :is(.video-controls, .video-layout .actions) button, :is(.video-controls, .video-layout .actions) .button { width: 100%; }
-  .tracklist-head [data-copy] { width: 100%; }
+  .copy-field-head [data-copy] { width: 100%; }
 
   /* Quadro: uma coluna por vez com a próxima aparecendo; rola dentro do próprio quadro. */
   .board { grid-auto-columns: minmax(15rem, 84%); gap: 0.6rem; scroll-snap-type: x proximity; }

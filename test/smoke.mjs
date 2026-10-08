@@ -251,7 +251,7 @@ async function main() {
   await act('/channels', { name, description: 'teste ponta a ponta' })
   const channelId = row('SELECT id FROM channels WHERE name = ?', name)?.id
   assert.ok(channelId, 'canal não foi criado')
-  await act(`/channels/${channelId}/settings`, { name, description: 'teste ponta a ponta', songs_per_video: '2', auto_buffer: '3' })
+  await act(`/channels/${channelId}/settings`, { name, description: 'teste ponta a ponta', producer_name: 'jazzfavsuperregular', songs_per_video: '2', auto_buffer: '3' })
   const channel = row('SELECT * FROM channels WHERE id = ?', channelId)
   assert.equal(channel.songs_per_video, 2)
   assert.equal(channel.reuse_songs, 0)
@@ -287,6 +287,10 @@ async function main() {
   assert.equal(video.status, 'queued')
   assert.equal(video.approved_at, null)
   assert.equal(video.visual_id, cover.id)
+  const youtubeTitle = video.youtube_title
+  assert.equal([...youtubeTitle].length, 100, 'título YouTube deve ter 100 caracteres')
+  assert.equal(youtubeTitle.replaceAll('\u3164', ''), '\u058d', 'só o marcador pedido deve ser visível')
+  assert.equal(youtubeTitle.split('\u3164').length - 1, 99, 'título deve ter 99 fillers')
   let list = tracks(videoId)
   assert.deepEqual(list.map(track => track.id).sort((a, b) => a - b), [tone.id, quiet.id].sort((a, b) => a - b))
   assertTiming(video, list)
@@ -338,7 +342,10 @@ async function main() {
 
   await act(`/videos/${videoId}/visual`, { visual_id: String(alt.id) })
   assert.equal(videoRow(videoId).visual_id, alt.id)
-  await get(`/videos/${videoId}`)
+  const reviewedPage = (await get(`/videos/${videoId}`)).body.toString('utf8')
+  assert.ok(reviewedPage.includes(youtubeTitle), 'título persistido não aparece para copiar')
+  assert.ok(reviewedPage.includes('Produção musical: jazzfavsuperregular'), 'descrição sem crédito do canal')
+  assert.ok(reviewedPage.includes('Faixas:\n0:00 quiet\n0:02 chime'), 'descrição não acompanha a ordem e o crossfade')
 
   step('aprovando e renderizando')
   await act(`/videos/${videoId}/approve`)
@@ -408,6 +415,11 @@ async function main() {
   assert.ok(video.downloaded_at)
   const published = (await get(`/videos/${videoId}`)).body.toString('utf8')
   assert.ok(published.includes(`href="${youtube}"`), 'página do vídeo publicado sem o link do YouTube')
+  assert.equal(video.youtube_title, youtubeTitle, 'título mudou após render e publicação')
+  await act(`/channels/${channelId}/settings`, { name, description: 'teste ponta a ponta', producer_name: 'Outro Produtor', songs_per_video: '2', auto_buffer: '3' })
+  const revisedPage = (await get(`/videos/${videoId}`)).body.toString('utf8')
+  assert.ok(revisedPage.includes('Produção musical: Outro Produtor'), 'crédito novo não atualizou descrição do vídeo existente')
+  assert.equal(videoRow(videoId).youtube_title, youtubeTitle, 'alterar crédito não deve trocar o título')
   await refuse(`/videos/${videoId}/discard`)
   assert.equal(videoRow(videoId)?.status, 'published', 'vídeo publicado foi descartado')
   await get(`/videos/${videoId}/download`)

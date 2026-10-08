@@ -11,6 +11,8 @@ export interface Channel {
   id: number
   name: string
   description: string
+  /** Crédito na descrição do YouTube; vazio = usa o nome do canal. */
+  producer_name: string
   songs_per_video: number
   reuse_songs: number
   reuse_visuals: number
@@ -64,6 +66,8 @@ export interface Video {
   channel_id: number
   number: number
   style: string
+  /** Título quase invisível (99 U+3164 + um U+058D), gerado uma vez e copiado pro YouTube. */
+  youtube_title: string
   visual_id: number
   status: VideoStatus
   /** Null with status=queued means a reserved draft awaiting review. */
@@ -100,6 +104,7 @@ CREATE TABLE IF NOT EXISTS channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  producer_name TEXT NOT NULL DEFAULT '',
   songs_per_video INTEGER NOT NULL DEFAULT 20,
   reuse_songs INTEGER NOT NULL DEFAULT 0,
   reuse_visuals INTEGER NOT NULL DEFAULT 0,
@@ -156,6 +161,7 @@ CREATE TABLE IF NOT EXISTS videos (
   channel_id INTEGER NOT NULL REFERENCES channels(id),
   number INTEGER NOT NULL,
   style TEXT NOT NULL,
+  youtube_title TEXT NOT NULL DEFAULT '',
   visual_id INTEGER NOT NULL REFERENCES visuals(id),
   status TEXT NOT NULL CHECK (status IN ('queued', 'rendering', 'done', 'published', 'failed')),
   progress REAL NOT NULL DEFAULT 0,
@@ -209,6 +215,9 @@ const videoColumns = new Set(
 const songColumns = new Set(
   (db.prepare('PRAGMA table_info(songs)').all() as { name: string }[]).map(col => col.name),
 )
+const channelColumns = new Set(
+  (db.prepare('PRAGMA table_info(channels)').all() as { name: string }[]).map(col => col.name),
+)
 db.exec('BEGIN IMMEDIATE')
 try {
   if (!videoColumns.has('approved_at')) {
@@ -229,6 +238,13 @@ try {
   // Prontos/publicados ficam em 0 (foram emendados sem crossfade); a fila é recalculada em startWorker.
   if (!videoColumns.has('crossfade_seconds')) {
     db.exec('ALTER TABLE videos ADD COLUMN crossfade_seconds REAL NOT NULL DEFAULT 0')
+  }
+  // Vazio aqui; startWorker preenche um título estável por vídeo sem mexer em arquivo/tempos.
+  if (!videoColumns.has('youtube_title')) {
+    db.exec("ALTER TABLE videos ADD COLUMN youtube_title TEXT NOT NULL DEFAULT ''")
+  }
+  if (!channelColumns.has('producer_name')) {
+    db.exec("ALTER TABLE channels ADD COLUMN producer_name TEXT NOT NULL DEFAULT ''")
   }
   // Faixas existentes ficam em 0: vídeos históricos mantêm exatamente os mesmos tempos.
   if (!songColumns.has('tail_trim_seconds')) {
