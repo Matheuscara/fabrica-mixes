@@ -1047,7 +1047,7 @@ function tracksSection(video: Video, ch: Channel, songs: TrackRow[], draft: bool
       </div>
       <input id="youtube-title" class="youtube-title" readonly spellcheck="false" value="${video.youtube_title}"
         aria-describedby="youtube-title-hint">
-      <p class="field-hint" id="youtube-title-hint">Parece vazio de propósito: 99 espaços invisíveis e um ֍, fixos para este vídeo.
+      <p class="field-hint" id="youtube-title-hint">Parece vazio de propósito: 99 espaços invisíveis e um símbolo sorteado em posição aleatória, fixos para este vídeo.
         O “Mix #${video.number}” fica só aqui no app.</p>
     </div>
     <div class="copy-field">

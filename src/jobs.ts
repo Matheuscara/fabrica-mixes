@@ -67,11 +67,16 @@ export function capacity(ch: Channel): Capacity {
 
 // ── Montagem dos vídeos ─────────────────────────────────────────────
 
-/** 100 caracteres quase invisíveis: 99 U+3164 com um U+058D numa posição aleatória. */
+/** O único caractere visível é sorteado entre símbolos de texto (sem controles ou emoji). */
+const TITLE_FILLER = '\u3164'
+const OLD_TITLE_SYMBOL = '\u058d'
+const TITLE_SYMBOLS = ['֎', '⋆', '✧', '✦', '◇', '⁂', '※', '⊹'] as const
+const titleSymbol = () => TITLE_SYMBOLS[randomInt(TITLE_SYMBOLS.length)]!
+
 function youtubeTitle(): string {
-  const filler = '\u3164'.repeat(99)
+  const filler = TITLE_FILLER.repeat(99)
   const at = randomInt(100)
-  return filler.slice(0, at) + '\u058d' + filler.slice(at)
+  return filler.slice(0, at) + titleSymbol() + filler.slice(at)
 }
 
 /**
@@ -423,10 +428,19 @@ export function startWorker(): void {
       "SELECT id FROM videos WHERE status IN ('queued', 'failed') AND crossfade_seconds = 0",
     )) updateDraftTiming(id)
   })
-  // Vídeos anteriores ao título invisível ganham um, uma vez só; nada mais muda neles.
+  // Atualiza uma vez os títulos antigos com ֍, mantendo a posição do marcador e os outros dados.
   tx(() => {
-    for (const { id } of all<{ id: number }>("SELECT id FROM videos WHERE youtube_title = ''")) {
-      run('UPDATE videos SET youtube_title = ? WHERE id = ?', youtubeTitle(), id)
+    for (const { id, youtube_title } of all<{ id: number; youtube_title: string }>(
+      "SELECT id, youtube_title FROM videos WHERE youtube_title = '' OR instr(youtube_title, ?) > 0",
+      OLD_TITLE_SYMBOL,
+    )) {
+      if (!youtube_title) {
+        run('UPDATE videos SET youtube_title = ? WHERE id = ?', youtubeTitle(), id)
+      } else if (youtube_title.length === 100 && youtube_title.replaceAll(TITLE_FILLER, '') === OLD_TITLE_SYMBOL) {
+        const at = youtube_title.indexOf(OLD_TITLE_SYMBOL)
+        run('UPDATE videos SET youtube_title = ? WHERE id = ?',
+          youtube_title.slice(0, at) + titleSymbol() + youtube_title.slice(at + 1), id)
+      }
     }
   })
   rmSync(TMP_DIR, { recursive: true, force: true })

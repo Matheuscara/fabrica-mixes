@@ -75,9 +75,9 @@ render.*
   material, but never renders without approval. If any video has an error, it pauses until you
   resolve it.
 - **YouTube title and description**: each video gets a stable 100-character title (99 Hangul fillers
-  and one `֍` at a random position). Copy it and a simple description with the song timestamps and
-  the producer credited in channel settings. YouTube may reject nearly invisible titles; publishing
-  remains manual.
+  and one decorative symbol chosen at random and placed randomly). Copy it and a simple description
+  with song timestamps and the producer credited in channel settings. YouTube may reject nearly
+  invisible titles; publishing remains manual.
 - **Post-publication**: record the download, planned date, link and publication date; after
   publishing, "Apagar arquivo" (delete file) frees the video's disk space and keeps the record.
 

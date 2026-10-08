@@ -289,7 +289,9 @@ async function main() {
   assert.equal(video.visual_id, cover.id)
   const youtubeTitle = video.youtube_title
   assert.equal([...youtubeTitle].length, 100, 'título YouTube deve ter 100 caracteres')
-  assert.equal(youtubeTitle.replaceAll('\u3164', ''), '\u058d', 'só o marcador pedido deve ser visível')
+  const symbol = youtubeTitle.replaceAll('\u3164', '')
+  assert.equal([...symbol].length, 1, 'título deve ter exatamente um símbolo visível')
+  assert.notEqual(symbol, '\u058d', 'símbolo não pode ser o marcador fixo antigo')
   assert.equal(youtubeTitle.split('\u3164').length - 1, 99, 'título deve ter 99 fillers')
   let list = tracks(videoId)
   assert.deepEqual(list.map(track => track.id).sort((a, b) => a - b), [tone.id, quiet.id].sort((a, b) => a - b))
